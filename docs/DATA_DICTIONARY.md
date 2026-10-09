@@ -62,5 +62,6 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 - Fases fiscais não são somadas nem apresentadas como intercambiáveis.
 - Valores monetários usam `Decimal`/`NUMERIC(24, 6)` e são BRL nominais, sem correção inflacionária.
 - O código CNES de município usa seis dígitos (`354340`) no arquivo; o armazenamento usa o código IBGE completo (`3543402`). O mapeamento é explícito no adaptador.
+- O recurso CNES de 09/10/2026 contém bytes Latin-1/Windows-1252 e não declara charset no `Content-Type`; o parser usa Latin-1 estrito e valida o cabeçalho antes de agregar.
 - Dados CNES do MVP são agregados antes da persistência; nomes, endereços, telefones, e-mails e CNPJs não são copiados para o banco.
 - Datas de referência, captura e publicação são campos separados.

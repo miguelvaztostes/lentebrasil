@@ -1,0 +1,12 @@
+.git
+.github
+.env
+work
+outputs
+data/raw
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.next
+**/node_modules
+

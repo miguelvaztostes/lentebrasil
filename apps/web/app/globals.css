@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --ink: #102333;
+  --teal: #119e9c;
+  --gold: #e3af42;
+  --paper: #f5f3ed;
+  --mist: #e8f3f2;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 90% 2%, rgba(17, 158, 156, 0.12), transparent 28rem),
+    #fbfaf7;
+  font-family: Inter, Manrope, "Segoe UI", Arial, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10; }
+  .eyebrow { @apply text-xs font-bold uppercase tracking-[0.2em] text-teal; }
+  .card { @apply rounded-2xl border border-ink/10 bg-white shadow-card; }
+  .button-primary { @apply inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 text-sm font-bold text-white transition hover:bg-teal; }
+  .button-secondary { @apply inline-flex items-center justify-center rounded-full border border-ink/20 bg-white px-5 py-3 text-sm font-bold text-ink transition hover:border-teal hover:text-teal; }
+}
+
+.grid-lines {
+  background-image:
+    linear-gradient(rgba(16, 35, 51, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 35, 51, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+

@@ -1,0 +1,119 @@
+name: lente-ribeirao
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lente}
+      POSTGRES_USER: ${POSTGRES_USER:-lente}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lente-local}
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lente} -d ${POSTGRES_DB:-lente}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://lente:lente-local@db:5432/lente}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost}
+      RAW_DATA_DIR: /data/raw
+    volumes:
+      - raw_data:/data/raw
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["python", "-m", "ingestion.scheduler"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://lente:lente-local@db:5432/lente}
+      RAW_DATA_DIR: /data/raw
+      INGESTION_INTERVAL_SECONDS: ${INGESTION_INTERVAL_SECONDS:-86400}
+      INGESTION_SOURCES: ${INGESTION_SOURCES:-ibge,siconfi,cnes}
+      SICONFI_START_YEAR: ${SICONFI_START_YEAR:-2022}
+      SICONFI_END_YEAR: ${SICONFI_END_YEAR:-2025}
+    volumes:
+      - raw_data:/data/raw
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    build:
+      context: apps/web
+      args:
+        API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000}
+    environment:
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000}
+      NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-/api}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  proxy:
+    image: caddy:2-alpine
+    profiles: ["production"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  raw_data:
+  caddy_data:
+  caddy_config:
+

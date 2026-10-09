@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Símbolo Lente Ribeirão: lente, movimento das águas e pontos de dados">
+  <g fill="none" stroke-linecap="butt">
+    <path d="M25 113 A77 77 0 0 1 126 27" stroke="#102333" stroke-width="20"/>
+    <path d="M155 56 A77 77 0 0 1 171 127" stroke="#102333" stroke-width="20"/>
+    <path d="M172 135 A77 77 0 0 1 36 149" stroke="#119E9C" stroke-width="20"/>
+    <path d="M33 146 A77 77 0 0 1 25 125" stroke="#102333" stroke-width="20"/>
+  </g>
+  <circle cx="93" cy="93" r="38" fill="#119E9C"/>
+  <path d="M23 121 Q66 94 103 118 Q136 139 166 121" stroke="#FFFFFF" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <path d="M35 142 Q76 120 108 142 Q130 158 153 148" stroke="#102333" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <rect x="139" y="10" width="13" height="13" rx="1.5" fill="#119E9C"/>
+  <rect x="157" y="28" width="15" height="15" rx="1.5" fill="#E3AF42"/>
+  <rect x="139" y="33" width="10" height="10" rx="1" fill="#119E9C"/>
+  <rect x="175" y="51" width="9" height="9" rx="1" fill="#119E9C"/>
+  </svg>
