@@ -8,9 +8,10 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, desc, func, select, text
+from sqlalchemy import and_, cast, desc, func, select, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from lente_api.database import get_db
 from lente_api.models import (
@@ -20,6 +21,7 @@ from lente_api.models import (
     Municipality,
     Observation,
     Source,
+    SourceSnapshot,
 )
 from lente_api.schemas import IndicatorOut, MunicipalityOut
 
@@ -31,7 +33,7 @@ def _page(limit: int, offset: int, items: list[Any], count: int) -> dict[str, An
     return {"items": items, "count": count, "limit": limit, "offset": offset}
 
 
-def _latest_observations_query():
+def _latest_observations_query(*, eager: bool = False):
     latest = (
         select(
             Observation.municipality_ibge_code,
@@ -50,7 +52,7 @@ def _latest_observations_query():
         )
         .subquery()
     )
-    return select(Observation).join(
+    statement = select(Observation).join(
         latest,
         and_(
             Observation.municipality_ibge_code == latest.c.municipality_ibge_code,
@@ -61,6 +63,24 @@ def _latest_observations_query():
             Observation.revision == latest.c.max_revision,
         ),
     )
+    if eager:
+        statement = statement.options(
+            joinedload(Observation.indicator),
+            joinedload(Observation.municipality),
+            joinedload(Observation.snapshot)
+            .joinedload(SourceSnapshot.dataset)
+            .joinedload(Dataset.source),
+        )
+    return statement
+
+
+def _require_municipality(db: Session, code: str) -> Municipality:
+    if len(code) != 7 or not code.isdigit():
+        raise HTTPException(status_code=400, detail="Código IBGE municipal deve ter sete dígitos")
+    municipality = db.get(Municipality, code)
+    if municipality is None:
+        raise HTTPException(status_code=404, detail="Município não encontrado")
+    return municipality
 
 
 def _observation_dict(observation: Observation) -> dict[str, Any]:
@@ -82,6 +102,9 @@ def _observation_dict(observation: Observation) -> dict[str, Any]:
             "url": snapshot.url,
             "sha256": snapshot.sha256,
             "fetched_at": snapshot.fetched_at,
+            "license": source.license,
+            "source_status": source.source_status,
+            "connector_status": source.connector_status,
         },
     }
 
@@ -105,6 +128,33 @@ def municipalities(db: DbSession) -> list[Municipality]:
     return list(db.scalars(select(Municipality).order_by(Municipality.name)))
 
 
+@router.get("/geo/municipios")
+def geo_municipalities(
+    db: DbSession,
+    uf: str | None = Query(None, min_length=2, max_length=2),
+    q: str | None = Query(None, max_length=100),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    statement = select(Municipality)
+    count_statement = select(func.count(Municipality.ibge_code))
+    if uf:
+        normalized_uf = uf.upper()
+        statement = statement.where(Municipality.state == normalized_uf)
+        count_statement = count_statement.where(Municipality.state == normalized_uf)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        statement = statement.where(Municipality.name.ilike(pattern))
+        count_statement = count_statement.where(Municipality.name.ilike(pattern))
+    rows = list(db.scalars(statement.order_by(Municipality.name).limit(limit).offset(offset)))
+    return _page(
+        limit,
+        offset,
+        [MunicipalityOut.model_validate(row).model_dump() for row in rows],
+        db.scalar(count_statement) or 0,
+    )
+
+
 @router.get("/sources")
 def sources(
     db: DbSession,
@@ -119,7 +169,14 @@ def sources(
         count_statement = count_statement.where(
             (Source.status == status) | (Source.source_status == status)
         )
-    rows = list(db.scalars(statement.order_by(Source.provider).limit(limit).offset(offset)))
+    rows = list(
+        db.scalars(
+            statement.options(joinedload(Source.primary_resource))
+            .order_by(Source.provider)
+            .limit(limit)
+            .offset(offset)
+        )
+    )
     items = [
         {
             "provider": row.provider,
@@ -160,7 +217,14 @@ def datasets(
     if domain:
         statement = statement.where(Dataset.domain == domain)
         count_statement = count_statement.where(Dataset.domain == domain)
-    rows = list(db.scalars(statement.order_by(Dataset.title).limit(limit).offset(offset)))
+    rows = list(
+        db.scalars(
+            statement.options(joinedload(Dataset.source))
+            .order_by(Dataset.title)
+            .limit(limit)
+            .offset(offset)
+        )
+    )
     items = [
         {
             "code": row.code,
@@ -213,25 +277,26 @@ def observations(
     from_period: Annotated[date | None, Query(alias="from")] = None,
     to_period: Annotated[date | None, Query(alias="to")] = None,
     scope: str | None = Query(None, max_length=2000),
-    municipality: str = Query("3543402", pattern=r"^\d{7}$"),
+    municipality: str = Query("3543402"),
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     indicator = db.scalar(select(Indicator).where(Indicator.code == code))
     if not indicator:
         raise HTTPException(status_code=404, detail="Indicador não encontrado")
+    municipality_row = _require_municipality(db, municipality)
     if from_period and to_period and from_period > to_period:
-        raise HTTPException(status_code=422, detail="O parâmetro from deve preceder to")
+        raise HTTPException(status_code=400, detail="O parâmetro from deve preceder to")
     requested_scope: dict[str, Any] | None = None
     if scope:
         try:
             requested_scope = json.loads(scope)
         except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=422, detail="scope deve ser JSON válido") from exc
+            raise HTTPException(status_code=400, detail="scope deve ser JSON válido") from exc
         if not isinstance(requested_scope, dict):
-            raise HTTPException(status_code=422, detail="scope deve ser um objeto JSON")
+            raise HTTPException(status_code=400, detail="scope deve ser um objeto JSON")
 
-    statement = _latest_observations_query().where(
+    statement = _latest_observations_query(eager=True).where(
         Observation.indicator_id == indicator.id,
         Observation.municipality_ibge_code == municipality,
     )
@@ -239,18 +304,17 @@ def observations(
         statement = statement.where(Observation.period_end >= from_period)
     if to_period:
         statement = statement.where(Observation.period_start <= to_period)
-    rows = list(db.scalars(statement.order_by(Observation.period_start).limit(2001)))
     if requested_scope is not None:
-        rows = [
-            row
-            for row in rows
-            if all(row.scope_json.get(key) == value for key, value in requested_scope.items())
-        ]
-    total = len(rows)
-    rows = rows[offset : offset + limit]
+        statement = statement.where(cast(Observation.scope_json, JSONB).contains(requested_scope))
+    count_statement = select(func.count()).select_from(statement.order_by(None).subquery())
+    total = db.scalar(count_statement) or 0
+    rows = list(
+        db.scalars(statement.order_by(Observation.period_start).limit(limit).offset(offset))
+    )
     return {
         "indicator": IndicatorOut.model_validate(indicator).model_dump(),
         "municipality_ibge_code": municipality,
+        "municipality": MunicipalityOut.model_validate(municipality_row).model_dump(),
         "items": [_observation_dict(row) for row in rows],
         "count": total,
         "limit": limit,
@@ -258,12 +322,22 @@ def observations(
     }
 
 
-@router.get("/dashboard/summary")
-def dashboard_summary(db: DbSession) -> dict[str, Any]:
+def _municipality_summary(db: Session, municipality_code: str) -> dict[str, Any]:
+    municipality = _require_municipality(db, municipality_code)
+    card_codes = [
+        "population_estimated",
+        "revenue_realized",
+        "expense_paid",
+        "cnes_establishments_without_disable_reason",
+    ]
     rows = list(
         db.scalars(
-            _latest_observations_query()
-            .where(Observation.municipality_ibge_code == "3543402")
+            _latest_observations_query(eager=True)
+            .join(Indicator, Indicator.id == Observation.indicator_id)
+            .where(
+                Observation.municipality_ibge_code == municipality_code,
+                Indicator.code.in_(card_codes),
+            )
             .order_by(Observation.period_end.desc())
         )
     )
@@ -271,12 +345,7 @@ def dashboard_summary(db: DbSession) -> dict[str, Any]:
     for row in rows:
         latest_by_indicator.setdefault(row.indicator.code, row)
     cards = []
-    for code in [
-        "population_estimated",
-        "revenue_realized",
-        "expense_paid",
-        "cnes_establishments_without_disable_reason",
-    ]:
+    for code in card_codes:
         row = latest_by_indicator.get(code)
         if row:
             cards.append(
@@ -287,7 +356,7 @@ def dashboard_summary(db: DbSession) -> dict[str, Any]:
             )
     datasets_rows = list(db.scalars(select(Dataset).order_by(Dataset.domain)))
     return {
-        "municipality": {"ibge_code": "3543402", "name": "Ribeirão Preto", "state": "SP"},
+        "municipality": MunicipalityOut.model_validate(municipality).model_dump(),
         "generated_at": datetime.now(UTC),
         "cards": cards,
         "datasets": [
@@ -298,18 +367,29 @@ def dashboard_summary(db: DbSession) -> dict[str, Any]:
     }
 
 
+@router.get("/municipios/{ibge_code}/summary")
+def municipality_summary(ibge_code: str, db: DbSession) -> dict[str, Any]:
+    return _municipality_summary(db, ibge_code)
+
+
+@router.get("/dashboard/summary")
+def dashboard_summary(db: DbSession, municipality: str = Query("3543402")) -> dict[str, Any]:
+    return _municipality_summary(db, municipality)
+
+
 @router.get("/exports/observations.csv")
 def export_observations(
     db: DbSession,
     indicator: str = Query(..., min_length=2, max_length=120),
-    municipality: str = Query("3543402", pattern=r"^\d{7}$"),
+    municipality: str = Query("3543402"),
 ) -> StreamingResponse:
     indicator_row = db.scalar(select(Indicator).where(Indicator.code == indicator))
     if not indicator_row:
         raise HTTPException(status_code=404, detail="Indicador não encontrado")
+    _require_municipality(db, municipality)
     rows = list(
         db.scalars(
-            _latest_observations_query()
+            _latest_observations_query(eager=True)
             .where(
                 Observation.indicator_id == indicator_row.id,
                 Observation.municipality_ibge_code == municipality,
@@ -353,7 +433,7 @@ def export_observations(
                 row.snapshot.sha256,
             ]
         )
-    filename = f"lente-ribeirao-{indicator}.csv"
+    filename = f"lente-brasil-{municipality}-{indicator}.csv"
     return StreamingResponse(
         iter([buffer.getvalue()]),
         media_type="text/csv; charset=utf-8",

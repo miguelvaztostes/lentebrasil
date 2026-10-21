@@ -133,3 +133,35 @@ entradas e 99 vínculos. Os candidatos permaneceram `not_implemented`/`not_publi
 variações nominais de provedor foram registradas como discrepâncias.
 Também foi validado o ciclo `0003 → 0002 → 0003`; a reimportação do mesmo arquivo restaurou os
 99 vínculos de forma idempotente, sem criar datasets nem observações adicionais.
+
+## Etapa 1 multicípio — 20/10/2026
+
+### Dados oficiais demonstrados em banco isolado
+
+| Município | População 2025 | Receita realizada 2025 | Despesa paga 2025 | CNES cadastrados | CNES sem motivo de desabilitação |
+|---|---:|---:|---:|---:|---:|
+| Ribeirão Preto (`3543402`) | 731.639 | R$ 4.819.300.021,27 | R$ 4.272.791.553,92 | 4.362 | 2.250 |
+| Campinas (`3509502`) | 1.187.974 | R$ 9.987.144.035,09 | R$ 9.051.973.374,98 | 5.073 | 3.798 |
+| São Paulo (`3550308`) | 11.904.961 | R$ 112.335.533.909,13 | R$ 105.887.210.349,69 | 43.837 | 29.679 |
+
+População: SIDRA 6579/9324. Valores fiscais: Siconfi RREO Anexo 01, 6º bimestre. CNES:
+arquivo nacional com referência de 20/10/2026. Valores são evidência desta execução isolada e
+continuam sujeitos a revisões das fontes.
+
+### Verificações
+
+- Geografia oficial: 27 UFs, 5.571 municípios e 11.136 novos mapeamentos nesta carga; o total de
+  mapeamentos também inclui os dois vínculos legados já existentes.
+- Coletores reais: IBGE `6/6`, Siconfi `12/12` e CNES `9/9`, sem rejeições.
+- Reexecução CNES: mesma soma SHA-256, zero itens reprocessados e nenhuma nova observação. Um
+  recorte posterior de Santos (`3548500`) gerou três indicadores a partir do agregado seguro da
+  mesma versão, sem baixar novamente o ZIP nacional.
+- CNES: 14 geografias `53xxxx` sem crosswalk municipal registradas como aviso de qualidade.
+- API: busca `uf=SP&q=Campinas` e resumos de `3543402`, `3509502` e `3550308` responderam 200.
+- Paginação SQL: fixture com 2.105 observações retornou contagem 2.105, página de 100 itens no
+  offset 2.000 e cinco itens no offset 2.100.
+- Migração: `0003 → 0004 → 0003 → 0004`; 27 observações reais permaneceram antes e depois.
+- Pytest: 18 testes aprovados, com um aviso conhecido de depreciação do TestClient do Starlette.
+
+O banco de comprovação é descartável e não faz parte da aplicação publicada. A busca nacional no
+frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.

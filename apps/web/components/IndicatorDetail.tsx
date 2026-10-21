@@ -7,7 +7,7 @@ import { ErrorState, LoadingState } from "./LoadingState";
 import { IndicatorChart } from "./IndicatorChart";
 import { StatusBadge } from "./StatusBadge";
 
-export function IndicatorDetail({ code }: { code: string }) {
+export function IndicatorDetail({ code, municipalityCode = "3543402" }: { code: string; municipalityCode?: string }) {
   const [data, setData] = useState<IndicatorResponse | null>(null);
   const [error, setError] = useState("");
   const [fromYear, setFromYear] = useState("");
@@ -15,11 +15,11 @@ export function IndicatorDetail({ code }: { code: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchJson<IndicatorResponse>(`/indicators/${encodeURIComponent(code)}/observations`, controller.signal)
+    fetchJson<IndicatorResponse>(`/indicators/${encodeURIComponent(code)}/observations?municipality=${encodeURIComponent(municipalityCode)}`, controller.signal)
       .then(setData)
       .catch((reason: Error) => reason.name !== "AbortError" && setError(reason.message));
     return () => controller.abort();
-  }, [code]);
+  }, [code, municipalityCode]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -40,7 +40,7 @@ export function IndicatorDetail({ code }: { code: string }) {
           <h1 className="mt-3 max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">{data.indicator.label}</h1>
           <p className="mt-5 max-w-3xl text-lg leading-8 text-ink/70">{data.indicator.definition}</p>
         </div>
-        <a href={`${API_BASE}/v1/exports/observations.csv?indicator=${encodeURIComponent(code)}`} className="button-secondary gap-2">
+        <a href={`${API_BASE}/v1/exports/observations.csv?indicator=${encodeURIComponent(code)}&municipality=${encodeURIComponent(municipalityCode)}`} className="button-secondary gap-2">
           <ArrowDownTrayIcon className="h-5 w-5" /> Baixar CSV
         </a>
       </div>
@@ -49,7 +49,7 @@ export function IndicatorDetail({ code }: { code: string }) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 id="serie-title" className="text-xl font-extrabold">Série histórica</h2>
-              <p className="text-sm text-ink/60">{data.indicator.unit} · Ribeirão Preto</p>
+              <p className="text-sm text-ink/60">{data.indicator.unit} · {data.municipality.name}/{data.municipality.state}</p>
             </div>
             <div className="flex gap-3">
               <label className="text-xs font-bold">De<input aria-label="Ano inicial" inputMode="numeric" value={fromYear} onChange={(event) => setFromYear(event.target.value.replace(/\D/g, "").slice(0, 4))} className="mt-1 block w-24 rounded-lg border border-ink/20 px-3 py-2 text-sm" placeholder="ano" /></label>

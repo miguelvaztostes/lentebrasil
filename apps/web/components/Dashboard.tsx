@@ -13,17 +13,17 @@ type Summary = {
   datasets: Array<{ code: string; title: string; domain: string; status: string }>;
 };
 
-export function Dashboard() {
+export function Dashboard({ municipalityCode = "3543402" }: { municipalityCode?: string }) {
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchJson<Summary>("/dashboard/summary", controller.signal)
+    fetchJson<Summary>(`/municipios/${encodeURIComponent(municipalityCode)}/summary`, controller.signal)
       .then(setData)
       .catch((reason: Error) => reason.name !== "AbortError" && setError(reason.message));
     return () => controller.abort();
-  }, []);
+  }, [municipalityCode]);
 
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState />;

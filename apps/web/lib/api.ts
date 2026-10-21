@@ -34,6 +34,7 @@ export type Observation = {
 export type IndicatorResponse = {
   indicator: Indicator;
   municipality_ibge_code: string;
+  municipality: { ibge_code: string; name: string; state: string };
   items: Observation[];
   count: number;
 };

@@ -4,6 +4,21 @@
 > auditadas. Registros importados como `discovered` não integram esta lista de recursos
 > verificados e não autorizam coleta ou publicação.
 
+## Revalidação multicípio — 20/10/2026
+
+- IBGE Localidades respondeu com 27 UFs e 5.571 municípios atuais. A carga preserva unidades
+  anteriores como inativas e registra mudanças de nome em `geo_unit_versions`.
+- SIDRA 6579/9324 respondeu em um lote para Ribeirão Preto (`3543402`), Campinas (`3509502`) e
+  São Paulo (`3550308`), nos anos 2024–2025: seis linhas aceitas, nenhuma rejeitada.
+- Siconfi respondeu ao RREO Anexo 01, 6º bimestre de 2025, para os três entes: três chamadas sob
+  limite de 1 req/s, doze fases aceitas e nenhuma rejeitada.
+- O ZIP nacional CNES com referência de 20/10/2026 foi baixado uma vez, processado em streaming e
+  produziu nove agregados. Uma segunda execução recebeu a mesma versão e não repetiu o download
+  nem criou observações.
+- O CNES continha 14 códigos `53xxxx` sem correspondência municipal atual. As linhas estavam fora
+  do recorte selecionado, foram ignoradas e registradas como ocorrência de qualidade
+  `unknown_cnes_geography`; não foram silenciosamente convertidas para municípios.
+
 Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa que houve resposta de dados verificável; não significa endosso institucional ao Lente Ribeirão.
 
 | Fonte/dataset | Status | Recurso verificado | Formato/licença | Evidência e decisão |

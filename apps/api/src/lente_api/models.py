@@ -11,6 +11,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -69,6 +70,24 @@ class GeoUnit(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     parent: Mapped[GeoUnit | None] = relationship(remote_side="GeoUnit.id")
+
+
+class GeoUnitVersion(Base):
+    __tablename__ = "geo_unit_versions"
+    __table_args__ = (
+        UniqueConstraint("geo_unit_id", "effective_from", name="uq_geo_unit_version_date"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    geo_unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("geo_units.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    state: Mapped[str | None] = mapped_column(String(2))
+    effective_from: Mapped[date] = mapped_column(Date, index=True)
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    source_hash: Mapped[str] = mapped_column(String(64))
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    geo_unit: Mapped[GeoUnit] = relationship()
 
 
 class GeoCodeMapping(Base):
@@ -346,6 +365,13 @@ class Observation(Base):
             "revision",
             name="uq_observation_logical_revision",
         ),
+        Index(
+            "ix_observations_municipality_indicator_period",
+            "municipality_ibge_code",
+            "indicator_id",
+            "period_start",
+            "period_end",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -385,6 +411,36 @@ class IngestionRun(Base):
 
     dataset: Mapped[Dataset] = relationship(back_populates="runs")
     issues: Mapped[list[DataQualityIssue]] = relationship(back_populates="run")
+
+
+class IngestionJob(Base):
+    __tablename__ = "ingestion_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'retry', 'success', 'failed', 'disabled')",
+            name="ck_ingestion_jobs_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    job_key: Mapped[str] = mapped_column(String(240), unique=True, index=True)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.id"), index=True)
+    parameters: Mapped[dict] = mapped_column(JSON, default=dict)
+    checkpoint: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    lock_token: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    dataset: Mapped[Dataset] = relationship()
 
 
 class DataQualityIssue(Base):

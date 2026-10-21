@@ -5,13 +5,13 @@ import { fetchJson, type IndicatorResponse } from "@/lib/api";
 import { DataCard } from "./DataCard";
 import { ErrorState, LoadingState } from "./LoadingState";
 
-export function DomainDashboard({ codes }: { codes: string[] }) {
+export function DomainDashboard({ codes, municipalityCode = "3543402" }: { codes: string[]; municipalityCode?: string }) {
   const [items, setItems] = useState<IndicatorResponse[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    Promise.all(codes.map((code) => fetchJson<IndicatorResponse>(`/indicators/${code}/observations`)))
+    Promise.all(codes.map((code) => fetchJson<IndicatorResponse>(`/indicators/${code}/observations?municipality=${encodeURIComponent(municipalityCode)}`)))
       .then(setItems).catch((reason: Error) => setError(reason.message));
-  }, [codes]);
+  }, [codes, municipalityCode]);
   if (error) return <ErrorState message={error} />;
   if (!items) return <LoadingState />;
   const available = items.filter((item) => item.items.length > 0);

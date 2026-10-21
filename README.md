@@ -14,6 +14,9 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
 - Coleta real da população estimada pelo IBGE/SIDRA.
 - Coleta real do RREO/Siconfi, preservando receita, empenho, liquidação e pagamento.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
+- Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
+  municípios, crosswalks explícitos e histórico cadastral.
+- Jobs persistidos no PostgreSQL com lock, checkpoint, retomada, retry e backfill por janela.
 - CSV por indicador, status público dos pipelines, health/readiness e logs estruturados.
 - Docker Compose, Caddy opcional, testes e CI.
 
@@ -22,7 +25,8 @@ O IDEB está marcado como importação supervisionada até que o arquivo estrutu
 ## Requisitos
 
 - Docker 24+ com Docker Compose.
-- 4 GB de RAM recomendados. A primeira carga do CNES baixa um ZIP de aproximadamente 56 MB e o processa em memória sem persistir o conteúdo sensível.
+- 4 GB de RAM recomendados. O CNES é baixado uma vez por versão para arquivo temporário,
+  processado em streaming e removido sem persistir atributos pessoais na base analítica.
 
 ## Subir o ambiente
 
@@ -37,7 +41,9 @@ Em desenvolvimento:
 - API: `http://localhost:8000/api/v1/health`
 - OpenAPI: `http://localhost:8000/api/docs`
 
-As migrações rodam antes da API. O serviço `ingestion` espera a API ficar saudável, executa as fontes configuradas em `INGESTION_SOURCES` e repete no intervalo configurado, nunca inferior a uma hora.
+As migrações rodam antes da API. O serviço `ingestion` registra jobs recorrentes, busca trabalhos
+vencidos em intervalos curtos e usa lock no PostgreSQL. A recorrência nunca é inferior a uma hora;
+uma falha isolada não apaga o último dado publicado nem bloqueia outros jobs.
 
 ## Executar coletores manualmente
 
@@ -54,6 +60,23 @@ Coletar e persistir:
 ```bash
 docker compose run --rm ingestion python -m ingestion.cli ingest --source all
 ```
+
+Sincronizar a dimensão territorial oficial e coletar uma janela controlada para três municípios:
+
+```bash
+docker compose run --rm ingestion python -m ingestion.cli geo-sync
+docker compose run --rm ingestion python -m ingestion.cli ingest --source ibge \
+  --municipalities 3543402,3509502,3550308 --start-year 2024 --end-year 2025
+docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi \
+  --municipalities 3543402,3509502,3550308 --start-year 2025 --end-year 2025 \
+  --periods 6 --max-requests 10
+docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes \
+  --municipalities 3543402,3509502,3550308
+```
+
+Para backfill, prefira `ingestion.cli schedule` com município/UF, anos e limite total explícitos.
+O comando antigo sem município continua usando Ribeirão Preto por compatibilidade. O Siconfi
+recusa janelas acima de `--max-requests` e respeita uma requisição por segundo.
 
 Verificar disponibilidade dos endpoints:
 
@@ -75,6 +98,8 @@ plano técnico original estão preservados em `docs/catalog/input` e `docs/refer
 Principais rotas:
 
 - `GET /api/v1/municipalities`
+- `GET /api/v1/geo/municipios?uf=SP&q=Campinas&limit=50&offset=0`
+- `GET /api/v1/municipios/{ibge_code}/summary`
 - `GET /api/v1/sources`
 - `GET /api/v1/datasets`
 - `GET /api/v1/indicators`
@@ -84,6 +109,8 @@ Principais rotas:
 - `GET /api/v1/pipelines/status`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
+O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando
+Ribeirão Preto quando o parâmetro é omitido.
 
 ## Testes
 

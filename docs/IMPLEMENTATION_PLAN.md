@@ -90,3 +90,16 @@ docs → migração/catálogo → API → adaptador IBGE → UI → Siconfi/CNES
      → testes → observabilidade → backup/restore → empacotamento
 ```
 
+## Etapa 1 — fundação multicípio concluída em 20/10/2026
+
+- A API de Localidades alimenta UFs, municípios atuais, versões de nomes e crosswalks explícitos.
+- IBGE/SIDRA recebe lotes municipais, intervalo de anos e versão de recurso.
+- Siconfi recebe município, exercício, período e anexo, com teto de chamadas e 1 req/s.
+- CNES baixa o ZIP nacional uma vez por versão, processa o CSV em streaming e agrega somente os
+  municípios selecionados; o arquivo temporário é removido após o parser.
+- O scheduler usa jobs PostgreSQL com lock, checkpoint, último sucesso, retry e janela explícita.
+- Filtros territoriais, período e escopo são executados em SQL, com contagem antes da paginação.
+- O frontend continua em Ribeirão por padrão, mas seus componentes aceitam código municipal.
+
+A busca territorial completa e as rotas públicas nacionais continuam reservadas para a etapa 2.
+

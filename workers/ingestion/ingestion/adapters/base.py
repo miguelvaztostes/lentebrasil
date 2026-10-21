@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -47,17 +48,40 @@ class SourceValidationError(ValueError):
 
 @dataclass(slots=True)
 class FetchedPayload:
-    content: bytes
+    content: bytes | None
     url: str
     fetched_at: datetime
     original_format: str
     response_headers: dict[str, str] = field(default_factory=dict)
     published_at: datetime | None = None
     persist_raw: bool = True
+    file_path: Path | None = None
+    resource_version: str | None = None
+    not_modified: bool = False
+    sha256_value: str | None = None
 
     @property
     def sha256(self) -> str:
-        return hashlib.sha256(self.content).hexdigest()
+        if self.sha256_value:
+            return self.sha256_value
+        if self.content is not None:
+            self.sha256_value = hashlib.sha256(self.content).hexdigest()
+            return self.sha256_value
+        if self.file_path is None:
+            return hashlib.sha256(b"").hexdigest()
+        digest = hashlib.sha256()
+        with self.file_path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        self.sha256_value = digest.hexdigest()
+        return self.sha256_value
+
+    def read_bytes(self) -> bytes:
+        if self.content is not None:
+            return self.content
+        if self.file_path is None:
+            raise SourceValidationError("Payload sem conteúdo", code="empty_payload")
+        return self.file_path.read_bytes()
 
 
 @dataclass(slots=True)
@@ -90,6 +114,7 @@ class SourceAdapter(ABC):
 
     def __init__(self, *, raw_data_dir: Path):
         self.raw_data_dir = raw_data_dir
+        self.quality_warnings: list[dict[str, Any]] = []
 
     @abstractmethod
     def discover(self) -> dict[str, Any]:
@@ -106,6 +131,10 @@ class SourceAdapter(ABC):
     @abstractmethod
     def validate(self, records: list[ObservationRecord]) -> None:
         """Raise SourceValidationError when publishing must be blocked."""
+
+    def after_validate(self, payload: FetchedPayload, records: list[ObservationRecord]) -> None:
+        """Persist source-specific checkpoint metadata after validation succeeds."""
+        return None
 
     def health(self) -> dict[str, Any]:
         try:
@@ -140,15 +169,28 @@ class SourceAdapter(ABC):
             parsed_payloads: list[tuple[FetchedPayload, list[ObservationRecord]]] = []
             for payload in payloads:
                 checksums.append(payload.sha256)
+                if payload.not_modified:
+                    continue
                 records = self.parse(payload)
                 received += len(records)
                 self.validate(records)
+                self.after_validate(payload, records)
                 accepted += len(records)
                 parsed_payloads.append((payload, records))
             if not dry_run:
                 for payload, records in parsed_payloads:
                     snapshot = self._create_snapshot(db, dataset, payload)
                     self.upsert(db, records, snapshot)
+                for warning in self.quality_warnings:
+                    db.add(
+                        DataQualityIssue(
+                            run_id=run.id,
+                            issue_code=warning["code"],
+                            severity="warning",
+                            details=warning["details"],
+                            status="open",
+                        )
+                    )
             combined_checksum = hashlib.sha256("".join(checksums).encode()).hexdigest()
             if not dry_run:
                 run.status = "success"
@@ -263,8 +305,14 @@ class SourceAdapter(ABC):
             filename = f"{payload.fetched_at:%Y%m%dT%H%M%SZ}-{payload.sha256[:16]}.{suffix}"
             path = directory / filename
             if not path.exists():
-                path.write_bytes(payload.content)
+                if payload.file_path is not None:
+                    shutil.copyfile(payload.file_path, path)
+                else:
+                    path.write_bytes(payload.content or b"")
             storage_path = str(path)
+        headers = dict(payload.response_headers)
+        if payload.resource_version:
+            headers["x-lente-resource-version"] = payload.resource_version
         snapshot = SourceSnapshot(
             dataset_id=dataset.id,
             fetched_at=payload.fetched_at,
@@ -273,7 +321,7 @@ class SourceAdapter(ABC):
             sha256=payload.sha256,
             storage_path=storage_path,
             original_format=payload.original_format,
-            response_headers=payload.response_headers,
+            response_headers=headers,
         )
         db.add(snapshot)
         db.flush()

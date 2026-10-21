@@ -18,6 +18,7 @@
 |  | `original_format`, `response_headers` | Tipo do artefato e metadados HTTP permitidos. |
 | `geo_units` | `unit_type`, `code`, `parent_id` | Hierarquia nacional aditiva; não substitui `municipalities`. |
 | `geo_code_mappings` | `code_system`, `external_code` | Tradução explícita de códigos externos, com vigência. |
+| `geo_unit_versions` | nome, UF, vigência e hash | Histórico aditivo das identidades territoriais recebidas do IBGE. |
 | `data_providers` | `source_status`, `connector_status` | Organização e estados independentes de descoberta e automação. |
 | `source_resources` | URL, formato, licença e estados | Recurso concreto; pode existir sem conector e sem dados. |
 | `catalog_imports` | versão, SHA-256 e discrepâncias | Execução idempotente de um arquivo candidato. |
@@ -49,6 +50,7 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 | Tabela | Campos | Semântica |
 |---|---|---|
 | `ingestion_runs` | início/fim, status, recebidos/aceitos/rejeitados, checksum, erro | Uma execução auditável por dataset. Erros são sanitizados antes da exposição pública. |
+| `ingestion_jobs` | chave, parâmetros, checkpoint, lock, tentativas e último sucesso | Trabalho persistente por recurso/lote; suporta retomada e impede execução concorrente. |
 | `data_quality_issues` | código, severidade, detalhes, status | Divergência de schema/domínio/valor ligada à execução. |
 
 ## Indicadores iniciais
@@ -60,7 +62,7 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 | `expense_committed` | BRL nominal | idem | `DespesasExcetoIntraOrcamentarias`, coluna `DESPESAS EMPENHADAS ATÉ O BIMESTRE (f)`. |
 | `expense_liquidated` | BRL nominal | idem | Coluna `DESPESAS LIQUIDADAS ATÉ O BIMESTRE (h)`. |
 | `expense_paid` | BRL nominal | idem | Coluna `DESPESAS PAGAS ATÉ O BIMESTRE (j)`. |
-| `cnes_establishments_registered` | estabelecimentos | status do cadastro | Quantidade de linhas do arquivo corrente para `CO_IBGE=354340`; não mede atendimentos ou qualidade. |
+| `cnes_establishments_registered` | estabelecimentos | município e status do cadastro | Quantidade de linhas do arquivo corrente para o código CNES reconciliado; não mede atendimentos ou qualidade. |
 | `cnes_establishments_without_disable_reason` | estabelecimentos | `CO_MOTIVO_DESAB` vazio | Contagem descritiva do cadastro; o rótulo não equivale a auditoria operacional de atividade. |
 | `cnes_establishments_sus_ambulatory` | estabelecimentos | `CO_AMBULATORIAL_SUS=SIM` | Cadastro informa atendimento ambulatorial SUS; não mede produção ou tempo de espera. |
 
@@ -69,7 +71,9 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 - `NULL != 0`: conversão vazia gera ausência/rejeição, nunca zero automático.
 - Fases fiscais não são somadas nem apresentadas como intercambiáveis.
 - Valores monetários usam `Decimal`/`NUMERIC(24, 6)` e são BRL nominais, sem correção inflacionária.
-- O código CNES de município usa seis dígitos (`354340`) no arquivo; o armazenamento usa o código IBGE completo (`3543402`). O mapeamento é explícito no adaptador.
+- O código CNES de município usa seis dígitos no arquivo; o armazenamento usa o código IBGE
+  canônico de sete. A sincronização materializa um crosswalk explícito e verifica colisões; o parser
+  nunca trunca códigos recebidos para inferir a identidade.
 - O recurso CNES de 09/10/2026 contém bytes Latin-1/Windows-1252 e não declara charset no `Content-Type`; o parser usa Latin-1 estrito e valida o cabeçalho antes de agregar.
 - Dados CNES do MVP são agregados antes da persistência; nomes, endereços, telefones, e-mails e CNPJs não são copiados para o banco.
 - Datas de referência, captura e publicação são campos separados.
