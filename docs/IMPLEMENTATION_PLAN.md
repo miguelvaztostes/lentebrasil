@@ -2,6 +2,10 @@
 
 Atualizado em 09/10/2026. Município inicial: Ribeirão Preto/SP (`3543402`).
 
+> Em 20/10/2026 foi adicionada uma fundação nacional compatível, descrita em
+> `NACIONALIZACAO_BASELINE.md` e `CATALOGO_NACIONAL.md`. O MVP municipal e seus coletores
+> continuam operacionais; candidatos nacionais não são tratados como integrações homologadas.
+
 ## Objetivo e limites
 
 O Lente Ribeirão é um observatório cívico independente. Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 2030 ou do Lente Brasil. O MVP publica apenas dados agregados obtidos de fontes oficiais verificadas, sempre com período, unidade, método, data de coleta e ligação para a fonte.

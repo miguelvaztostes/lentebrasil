@@ -8,6 +8,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
 
 - API pública FastAPI em `/api/v1` e documentação OpenAPI em `/api/docs`.
 - PostgreSQL com migrações, catálogo, snapshots, revisões e auditoria de ingestão.
+- Fundação nacional aditiva para geografia, provedores, recursos, cobertura e releases, sem
+  retirar os contratos municipais.
 - Next.js responsivo com página inicial, catálogo, séries, tabelas, fontes, metodologia e dados abertos.
 - Coleta real da população estimada pelo IBGE/SIDRA.
 - Coleta real do RREO/Siconfi, preservando receita, empenho, liquidação e pagamento.
@@ -60,6 +62,13 @@ docker compose run --rm ingestion python -m ingestion.cli health --source all
 ```
 
 O Siconfi respeita uma requisição por segundo. Ajuste o recorte anual com `SICONFI_START_YEAR` e `SICONFI_END_YEAR`; por padrão são usados exercícios completos de 2022 a 2025.
+
+## Catálogo nacional candidato
+
+O inventário nacional, quando fornecido, é validado e importado somente como metadado. Uma
+fonte `discovered` continua não integrada até haver verificação e conector ativo. Consulte
+`docs/CATALOGO_NACIONAL.md` para o contrato e os comandos. Os arquivos nacionais de referência
+não estavam presentes neste checkout e, por isso, não foram fabricados nem importados.
 
 ## API e exportação
 
@@ -141,3 +150,5 @@ Uma VM com 2 vCPU, 4 GB de RAM e SSD é o ponto de partida recomendado; medir an
 - `docs/IMPLEMENTATION_PLAN.md`: arquitetura, fases e riscos.
 - `docs/SOURCES.md`: inventário e evidências de acesso.
 - `docs/DATA_DICTIONARY.md`: modelo, indicadores e regras de qualidade.
+- `docs/NACIONALIZACAO_BASELINE.md`: auditoria e baseline anteriores à fundação nacional.
+- `docs/CATALOGO_NACIONAL.md`: schema, estados, importação, segurança e manutenção.

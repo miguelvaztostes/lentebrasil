@@ -16,6 +16,14 @@
 |  | `url`, `fetched_at`, `published_at` | Origem, captura UTC e publicação original, quando informada. |
 |  | `storage_path` | Caminho do bruto somente quando o conteúdo pode ser retido; pode ser `NULL`. |
 |  | `original_format`, `response_headers` | Tipo do artefato e metadados HTTP permitidos. |
+| `geo_units` | `unit_type`, `code`, `parent_id` | Hierarquia nacional aditiva; não substitui `municipalities`. |
+| `geo_code_mappings` | `code_system`, `external_code` | Tradução explícita de códigos externos, com vigência. |
+| `data_providers` | `source_status`, `connector_status` | Organização e estados independentes de descoberta e automação. |
+| `source_resources` | URL, formato, licença e estados | Recurso concreto; pode existir sem conector e sem dados. |
+| `catalog_imports` | versão, SHA-256 e discrepâncias | Execução idempotente de um arquivo candidato. |
+| `catalog_entries` | `external_catalog_id`, `raw_record` | Registro original e vínculos sem perda do metadado recebido. |
+| `dataset_coverage` | geografia, escopo, período e status | Cobertura aferida; nunca inferida pela presença do dataset. |
+| `publication_releases` | chave, período, estado e proveniência | Unidade explícita de validação/publicação. |
 
 ## Indicadores e observações
 

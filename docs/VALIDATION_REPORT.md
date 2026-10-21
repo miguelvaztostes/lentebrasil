@@ -105,3 +105,22 @@ O banco temporário usado no teste de restauração foi removido após a confer�
 3. Executar a restauração periodicamente em ambiente separado e enviar backups criptografados para armazenamento externo.
 4. Configurar domínio, TLS, segredos e observabilidade externa antes do deploy público.
 5. Tratar os módulos Legislativo, Metas 2030 e Notícias como novas etapas, sem misturá-los à confiabilidade do MVP atual.
+
+## Fundação nacional — 20/10/2026
+
+- Banco novo: `0001 → 0002` aprovado.
+- Cópia descartável do banco legado: 32 observações antes e depois de `0001 → 0002`.
+- Rollback seguro na cópia: `0002 → 0001 → 0002`, sempre com 32 observações.
+- Importador candidato executado duas vezes em teste: 2 provedores, 2 recursos, 2 datasets e
+  3 vínculos, sem duplicação; todos os recursos permaneceram `not_implemented` e os datasets
+  `not_published`.
+- API: health, municípios, fontes, datasets, indicadores e observações exercitados após a
+  migração.
+- Pytest: `10 passed`, com o mesmo aviso de depreciação do adaptador Starlette.
+- Ruff lint e format check: aprovados, 23 arquivos formatados.
+- Frontend: `npm test` (1 aprovado), typecheck e build de produção (16 rotas) aprovados.
+- Compose validado; imagens `api` e `web` construídas.
+
+Limitação: os arquivos nacionais de plano e inventário não estavam disponíveis. Assim, a
+estrutura e o validador foram comprovados com fixtures automatizadas, mas os 165 registros reais
+e suas URLs ainda não puderam ser auditados ou importados.

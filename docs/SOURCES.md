@@ -1,5 +1,9 @@
 # Inventário de fontes oficiais
 
+> O inventário nacional candidato é um artefato distinto deste levantamento de fontes já
+> auditadas. Registros importados como `discovered` não integram esta lista de recursos
+> verificados e não autorizam coleta ou publicação.
+
 Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa que houve resposta de dados verificável; não significa endosso institucional ao Lente Ribeirão.
 
 | Fonte/dataset | Status | Recurso verificado | Formato/licença | Evidência e decisão |

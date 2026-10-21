@@ -115,8 +115,10 @@ def sources(
     statement = select(Source)
     count_statement = select(func.count(Source.id))
     if status:
-        statement = statement.where(Source.status == status)
-        count_statement = count_statement.where(Source.status == status)
+        statement = statement.where((Source.status == status) | (Source.source_status == status))
+        count_statement = count_statement.where(
+            (Source.status == status) | (Source.source_status == status)
+        )
     rows = list(db.scalars(statement.order_by(Source.provider).limit(limit).offset(offset)))
     items = [
         {
@@ -127,8 +129,19 @@ def sources(
             "terms": row.terms,
             "expected_frequency": row.expected_frequency,
             "status": row.status,
+            "source_status": row.source_status,
+            "connector_status": row.connector_status,
             "verified_at": row.verified_at,
             "failure_reason": row.failure_reason,
+            "external_catalog_id": row.external_catalog_id,
+            "resource": None
+            if row.primary_resource is None
+            else {
+                "title": row.primary_resource.title,
+                "format": row.primary_resource.format,
+                "source_status": row.primary_resource.source_status,
+                "connector_status": row.primary_resource.connector_status,
+            },
         }
         for row in rows
     ]
@@ -157,6 +170,9 @@ def datasets(
             "granularity": row.granularity,
             "update_policy": row.update_policy,
             "status": row.status,
+            "connector_status": row.connector_status,
+            "publication_status": row.publication_status,
+            "external_catalog_id": row.external_catalog_id,
             "source": {"provider": row.source.provider, "url": row.source.source_url},
         }
         for row in rows
