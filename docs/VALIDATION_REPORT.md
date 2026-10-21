@@ -121,6 +121,15 @@ O banco temporário usado no teste de restauração foi removido após a confer�
 - Frontend: `npm test` (1 aprovado), typecheck e build de produção (16 rotas) aprovados.
 - Compose validado; imagens `api` e `web` construídas.
 
-Limitação: os arquivos nacionais de plano e inventário não estavam disponíveis. Assim, a
-estrutura e o validador foram comprovados com fixtures automatizadas, mas os 165 registros reais
-e suas URLs ainda não puderam ser auditados ou importados.
+### Referências recebidas após a fundação
+
+O PDF de 11 páginas, o XLSX de 9 abas e o JSON foram lidos integralmente. A comparação comprovou
+165 fontes iguais entre a aba mestre e o JSON, 16 setores, 95 indicadores, IDs sequenciais sem
+duplicatas e referências de indicadores válidas. O validador aceita o arquivo real sem modificar seu
+conteúdo e emite dois avisos para URLs FTP, que permanecem metadados não executáveis. O importador
+foi adaptado para preservar os vínculos propostos entre fontes e indicadores. Em banco descartável,
+duas execuções mantiveram uma única importação: 68 provedores, 121 recursos, 165 datasets, 165
+entradas e 99 vínculos. Os candidatos permaneceram `not_implemented`/`not_published`; quatro
+variações nominais de provedor foram registradas como discrepâncias.
+Também foi validado o ciclo `0003 → 0002 → 0003`; a reimportação do mesmo arquivo restaurou os
+99 vínculos de forma idempotente, sem criar datasets nem observações adicionais.

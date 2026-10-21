@@ -65,10 +65,10 @@ O Siconfi respeita uma requisição por segundo. Ajuste o recorte anual com `SIC
 
 ## Catálogo nacional candidato
 
-O inventário nacional, quando fornecido, é validado e importado somente como metadado. Uma
+O inventário nacional versionado é validado e importado somente como metadado. Uma
 fonte `discovered` continua não integrada até haver verificação e conector ativo. Consulte
-`docs/CATALOGO_NACIONAL.md` para o contrato e os comandos. Os arquivos nacionais de referência
-não estavam presentes neste checkout e, por isso, não foram fabricados nem importados.
+`docs/CATALOGO_NACIONAL.md` para o contrato e os comandos. O JSON original, a planilha mestre e o
+plano técnico original estão preservados em `docs/catalog/input` e `docs/reference`.
 
 ## API e exportação
 

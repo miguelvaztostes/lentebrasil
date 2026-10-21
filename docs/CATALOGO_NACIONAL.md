@@ -19,11 +19,12 @@ proveniência e período, podem gerar release `published`.
 
 ## Arquivo e validação
 
-O JSON deve ser um objeto com nome, versão do catálogo, versão do schema e uma lista em
-`records` (aliases documentados em `lente_api.catalog`). Cada registro requer:
+O arquivo oficial usa `projeto`, `levantamento`, contagens declaradas, `fontes`, `indicadores`,
+`regras_etl` e `roadmap`. O leitor também aceita o schema canônico com nome, versão e `records`.
+Cada fonte requer:
 
 - ID único e sequencial `LNT-0001` a `LNT-0165`;
-- área, indicador e provedor;
+- setor e nome; os indicadores ficam em lista separada e apontam para fonte principal/complementar;
 - URL `http`/`https` pública, quando fornecida, sem credenciais, host local ou IP privado;
 - formato, quando fornecido, dentro de `api`, `csv`, `zip`, `xlsx`, `parquet`, `portal`,
   `manual`, `json`, `xml` ou `pdf`.
@@ -47,6 +48,24 @@ PYTHONPATH=apps/api/src python -m lente_api.catalog import \
 O SHA-256 do arquivo identifica a importação. Repetir o mesmo arquivo não cria registros. Uma
 nova versão preserva a importação e o registro bruto mais recente por `external_catalog_id`;
 conflitos ficam em `catalog_imports.discrepancies`.
+
+### Auditoria dos arquivos de 20/10/2026
+
+- JSON: SHA-256 `07388429a64367e61f80beb4a371e988188ee7b8fc59d022134f9fd0fbb452de`.
+- XLSX: SHA-256 `fa3466000d62ba7baf6b2073511538a00a2532dfbfff63ff806add37ccf81e78`.
+- 165 IDs únicos e sequenciais; 16 setores; 95 indicadores; 61 fontes P0.
+- Os 165 registros da aba `02 FONTES MESTRE` são iguais aos objetos `fontes` do JSON nos 18
+  campos comparados.
+- Todos os vínculos de indicador apontam para IDs existentes.
+- Duas entradas (`LNT-0029` e `LNT-0030`) contêm o mesmo FTP oficial. O endereço é preservado no
+  registro bruto e reportado como aviso, mas não é selecionado como URL de conector HTTP/HTTPS.
+- O JSON não declara `schema_version`; o leitor registra o perfil
+  `lente-inventario-nacional-2026` sem reescrever o arquivo.
+- Em banco descartável, duas importações produziram o mesmo SHA/import ID, com 68 provedores,
+  121 recursos agrupados, 165 datasets candidatos e 165 entradas. Todos os 121 recursos ficaram
+  `not_implemented` e os 165 datasets `not_published`.
+- Foram preservados 99 vínculos de 95 indicadores com 82 fontes. Quatro conflitos de grafia de
+  provedor foram registrados, sem sobrescrever nomes: CNES, Inep/INEP e SENATRAN/Senatran.
 
 ## Proveniência, nulo e zero
 

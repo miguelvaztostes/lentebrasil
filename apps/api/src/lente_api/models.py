@@ -292,6 +292,7 @@ class CatalogEntry(Base):
     dataset_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("datasets.id"), index=True)
     area_slug: Mapped[str] = mapped_column(String(120), index=True)
     indicator_ref: Mapped[str] = mapped_column(String(180), index=True)
+    indicator_refs: Mapped[list] = mapped_column(JSON, default=list)
     raw_record: Mapped[dict] = mapped_column(JSON)
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

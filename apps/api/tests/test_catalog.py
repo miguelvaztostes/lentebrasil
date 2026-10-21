@@ -46,6 +46,64 @@ def _document(record_count: int, area_count: int, indicator_count: int) -> dict:
     }
 
 
+def _official_document() -> dict:
+    sources = []
+    for index in range(1, 4):
+        provider = 1 if index < 3 else 2
+        sources.append(
+            {
+                "id": f"LNT-{index:04d}",
+                "setor": f"Área {1 if index < 3 else 2}",
+                "nome": f"Provedor de teste {provider} — Fonte {index}",
+                "dados": f"Dados candidatos {index}",
+                "geografia": "Município",
+                "grao": "Município / ano",
+                "modalidade": "API documentada",
+                "formatos": "API REST JSON",
+                "api": f"https://dados.example.org/recurso/{provider}",
+                "download": "",
+                "tipo_link": "Sem link de arquivo cadastrado",
+                "auth": "Não",
+                "freq": "Anual",
+                "etl": "Validar antes de integrar.",
+                "prioridade": "P0",
+                "status": "Fonte oficial localizada; integração não testada",
+                "observacao": "Candidato de teste.",
+                "evidencia": f"https://dados.example.org/recurso/{provider}",
+            }
+        )
+    return {
+        "projeto": "Catálogo nacional de teste",
+        "levantamento": "test-1",
+        "status": "mapeamento inicial; nenhum conector homologado",
+        "fontes_count": 3,
+        "setores_count": 2,
+        "indicadores_count": 2,
+        "catalogo_descoberta": "https://dados.example.org/catalogo",
+        "fontes": sources,
+        "indicadores": [
+            {
+                "setor": "Área 1",
+                "indicador": "Indicador 1",
+                "fonte_principal_id": "LNT-0001",
+                "fonte_complementar_id": "LNT-0002",
+                "grao": "Município / ano",
+                "cuidado": "Não confundir ausência com zero.",
+            },
+            {
+                "setor": "Área 2",
+                "indicador": "Indicador 2",
+                "fonte_principal_id": "LNT-0003",
+                "fonte_complementar_id": None,
+                "grao": "Município / ano",
+                "cuidado": "Validar cobertura.",
+            },
+        ],
+        "regras_etl": [],
+        "roadmap": [],
+    }
+
+
 def test_validator_accepts_reference_cardinality_without_changing_document() -> None:
     document = _document(165, 16, 95)
     original = json.loads(json.dumps(document))
@@ -73,13 +131,26 @@ def test_validator_reports_duplicates_and_unsafe_urls() -> None:
     assert report.invalid_urls[0]["reason"] == "Endereço IP não público não é permitido"
 
 
+def test_validator_accepts_official_inventory_shape_and_checks_links() -> None:
+    document = _official_document()
+    report = validate_catalog_document(
+        document,
+        expectations=CatalogExpectations(record_count=3, area_count=2, indicator_count=2),
+    )
+
+    assert report.valid
+    assert report.schema_version == "lente-inventario-nacional-2026"
+    assert report.invalid_indicator_links == []
+    assert report.warnings
+
+
 @pytest.mark.integration
 def test_candidate_import_is_idempotent_and_never_activates_connector(tmp_path: Path) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         pytest.skip("TEST_DATABASE_URL não configurada")
     path = tmp_path / "candidate.json"
-    path.write_text(json.dumps(_document(3, 2, 2)), encoding="utf-8")
+    path.write_text(json.dumps(_official_document()), encoding="utf-8")
     engine = create_engine(database_url)
     expectations = CatalogExpectations(record_count=3, area_count=2, indicator_count=2)
 
@@ -93,25 +164,30 @@ def test_candidate_import_is_idempotent_and_never_activates_connector(tmp_path: 
             assert first.entries == second.entries == 3
             assert first.providers == second.providers == 2
             assert first.resources == second.resources == 2
-            assert first.datasets == second.datasets == 2
+            assert first.datasets == second.datasets == 3
             assert db.scalar(select(func.count(CatalogEntry.id))) >= 3
+            first_entry = db.scalar(
+                select(CatalogEntry).where(CatalogEntry.external_catalog_id == "LNT-0001")
+            )
+            assert first_entry is not None
+            assert first_entry.indicator_refs[0]["indicator"] == "Indicador 1"
             resources = list(
                 db.scalars(
-                    select(SourceResource).where(SourceResource.slug.like("provedor-teste-%"))
+                    select(SourceResource).where(SourceResource.slug.like("provedor-de-teste-%"))
                 )
             )
             assert resources
             assert {item.source_status for item in resources} == {"discovered"}
             assert {item.connector_status for item in resources} == {"not_implemented"}
-            datasets = list(
-                db.scalars(select(Dataset).where(Dataset.code.like("catalog_test_dataset_%")))
-            )
+            datasets = list(db.scalars(select(Dataset).where(Dataset.code.like("catalog_lnt_%"))))
             assert {item.publication_status for item in datasets} == {"not_published"}
 
         response = TestClient(app).get("/api/v1/sources?status=discovered&limit=100")
         assert response.status_code == 200
         candidates = [
-            item for item in response.json()["items"] if item["slug"].startswith("provedor-teste-")
+            item
+            for item in response.json()["items"]
+            if item["slug"].startswith("provedor-de-teste-")
         ]
         assert candidates
         assert {item["connector_status"] for item in candidates} == {"not_implemented"}
@@ -122,10 +198,12 @@ def test_candidate_import_is_idempotent_and_never_activates_connector(tmp_path: 
                     CatalogEntry.external_catalog_id.in_(["LNT-0001", "LNT-0002", "LNT-0003"])
                 )
             )
-            db.execute(delete(Dataset).where(Dataset.code.like("catalog_test_dataset_%")))
-            db.execute(delete(Source).where(Source.slug.like("provedor-teste-%")))
-            db.execute(delete(SourceResource).where(SourceResource.slug.like("provedor-teste-%")))
-            db.execute(delete(DataProvider).where(DataProvider.slug.like("provedor-teste-%")))
+            db.execute(delete(Dataset).where(Dataset.code.like("catalog_lnt_%")))
+            db.execute(delete(Source).where(Source.slug.like("provedor-de-teste-%")))
+            db.execute(
+                delete(SourceResource).where(SourceResource.slug.like("provedor-de-teste-%"))
+            )
+            db.execute(delete(DataProvider).where(DataProvider.slug.like("provedor-de-teste-%")))
             db.execute(
                 delete(CatalogImport).where(
                     CatalogImport.catalog_name == "Catálogo nacional de teste"

@@ -8,10 +8,9 @@ Registro executado em 20/10/2026 antes das alterações desta etapa.
 - SHA inicial e `origin/main`: `e49ac2059431eeec760f97843e41b97adad4c388`.
 - `git status --short`: limpo.
 - Branch de trabalho criada de `origin/main`: `feat/lente-brasil-nacional`.
-- `docs/PLANO_TECNICO_LENTE_BRASIL_V1.md`: não estava disponível no repositório,
-  Downloads nem no pacote anexado.
-- `docs/catalog/input/lente_inventario_nacional_fontes_2026.json`: não estava
-  disponível nos mesmos locais. Portanto, nenhum dos 165 registros foi inventado ou importado.
+- Na auditoria inicial, o plano e o inventário nacional ainda não estavam disponíveis. Eles foram
+  fornecidos em 20/10/2026 e depois versionados, sem alterar os originais, junto com os respectivos
+  hashes e relatório de validação.
 
 ## Arquitetura auditada
 
@@ -60,5 +59,5 @@ fontes previamente verificadas permanecem em `docs/SOURCES.md` e `docs/VALIDATIO
   fonte, do conector e da publicação sem retirar o campo legado.
 - Candidatos do inventário não podem ser confundidos com integrações. A importação grava
   apenas metadados como `discovered`/`not_implemented`/`not_published`.
-- O arquivo nacional ausente impede comprovar suas contagens e conteúdo reais nesta etapa.
-  O validador exige 165 registros, 16 áreas e 95 indicadores quando o arquivo for fornecido.
+- A auditoria posterior comprovou no material fornecido 165 registros, 16 áreas e 95 indicadores;
+  consulte `CATALOGO_NACIONAL.md` para os resultados e ressalvas.

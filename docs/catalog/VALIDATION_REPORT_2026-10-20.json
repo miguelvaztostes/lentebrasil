@@ -1,0 +1,39 @@
+{
+  "valid": true,
+  "catalog_name": "Lente Ribeirão / Lente Brasil",
+  "catalog_version": "2026-10-20",
+  "schema_version": "lente-inventario-nacional-2026",
+  "record_count": 165,
+  "area_count": 16,
+  "indicator_count": 95,
+  "duplicate_ids": [],
+  "missing_ids": [],
+  "unexpected_ids": [],
+  "invalid_ids": [],
+  "missing_fields": [],
+  "invalid_urls": [],
+  "unsupported_urls": [
+    {
+      "position": 29,
+      "id": "LNT-0029",
+      "field": "download",
+      "value": "ftp://ftp.mtps.gov.br/pdet/microdados/",
+      "reason": "FTP preservado como metadado; conectores aceitam somente HTTP/HTTPS"
+    },
+    {
+      "position": 30,
+      "id": "LNT-0030",
+      "field": "download",
+      "value": "ftp://ftp.mtps.gov.br/pdet/microdados/",
+      "reason": "FTP preservado como metadado; conectores aceitam somente HTTP/HTTPS"
+    }
+  ],
+  "invalid_formats": [],
+  "invalid_indicator_links": [],
+  "count_mismatches": [],
+  "warnings": [
+    "O arquivo não declara schema_version; aplicado o perfil de leitura lente-inventario-nacional-2026 sem alterar o original",
+    "2 URL(s) FTP foram preservadas apenas como metadado"
+  ],
+  "errors": []
+}
