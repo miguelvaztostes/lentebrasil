@@ -53,6 +53,21 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 | `ingestion_jobs` | chave, parâmetros, checkpoint, lock, tentativas e último sucesso | Trabalho persistente por recurso/lote; suporta retomada e impede execução concorrente. |
 | `data_quality_issues` | código, severidade, detalhes, status | Divergência de schema/domínio/valor ligada à execução. |
 
+## Estados públicos do catálogo
+
+| Estado | Regra pública |
+|---|---|
+| `discovered` | Fonte candidata registrada; recurso, licença e resposta ainda podem não ter sido verificados. |
+| `pending_review` | Recurso ou conector em revisão explícita. |
+| `integrated` | Conector implementado/ativo, mas sem observação publicada para o recorte consultado. |
+| `published` | Há observação persistida com snapshot e proveniência; não decorre apenas de flag cadastral. |
+| `stale` | Integração degradada ou publicação marcada como desatualizada. |
+| `restricted` | Reuso ou acesso possui restrição registrada. |
+| `unavailable` | Fonte ou conector está indisponível/falhou. |
+
+A pesquisa normaliza acentos com `translate(lower(...))` no PostgreSQL e usa índices GIN com
+`pg_trgm` para nomes municipais, títulos, provedores, indicadores e entradas do catálogo.
+
 ## Indicadores iniciais
 
 | Código | Unidade | Escopo | Regra |

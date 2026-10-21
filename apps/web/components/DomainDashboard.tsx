@@ -16,5 +16,5 @@ export function DomainDashboard({ codes, municipalityCode = "3543402" }: { codes
   if (!items) return <LoadingState />;
   const available = items.filter((item) => item.items.length > 0);
   if (!available.length) return <div className="card p-7"><p className="font-bold">Nenhum valor validado nesta área.</p><p className="mt-2 text-sm text-ink/65">O catálogo existe, mas a interface não substitui dados ausentes por zero ou estimativa.</p></div>;
-  return <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{available.map((item) => <DataCard key={item.indicator.code} indicator={item.indicator} observation={item.items.at(-1)!} />)}</div>;
+  return <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{available.map((item) => <DataCard key={item.indicator.code} indicator={item.indicator} observation={item.items.at(-1)!} municipalityCode={municipalityCode} />)}</div>;
 }

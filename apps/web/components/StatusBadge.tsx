@@ -7,6 +7,12 @@ const styles: Record<string, string> = {
   stale: "bg-orange-100 text-orange-800",
   failed: "bg-red-100 text-red-800",
   unavailable: "bg-slate-100 text-slate-700",
+  discovered: "bg-sky-100 text-sky-800",
+  pending_review: "bg-gold/20 text-[#76540e]",
+  integrated: "bg-indigo-100 text-indigo-800",
+  published: "bg-teal/10 text-[#087875]",
+  restricted: "bg-purple-100 text-purple-800",
+  not_published: "bg-slate-100 text-slate-700",
 };
 
 const labels: Record<string, string> = {
@@ -18,6 +24,12 @@ const labels: Record<string, string> = {
   stale: "desatualizada",
   failed: "falha na última coleta",
   unavailable: "indisponível",
+  discovered: "descoberta",
+  pending_review: "em revisão",
+  integrated: "integrada",
+  published: "dados publicados",
+  restricted: "restrita",
+  not_published: "sem dados publicados",
 };
 
 export function StatusBadge({ status }: { status: string }) {

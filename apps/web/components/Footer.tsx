@@ -5,10 +5,10 @@ export function Footer() {
     <footer className="mt-24 border-t border-ink/10 bg-ink text-white">
       <div className="container-page grid gap-10 py-12 md:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <p className="text-xl font-extrabold">Lente Ribeirão</p>
+          <p className="text-xl font-extrabold">Lente Brasil</p>
           <p className="mt-3 max-w-lg text-sm leading-6 text-white/70">
             Observatório cívico independente de dados públicos. Não representa oficialmente a Prefeitura,
-            a Câmara, o Instituto Ribeirão 2030 ou o Lente Brasil.
+            a Câmara, o Instituto Ribeirão 2030 ou qualquer órgão público.
           </p>
         </div>
         <div className="grid content-start gap-3 text-sm">
@@ -21,7 +21,7 @@ export function Footer() {
           <p className="font-bold text-gold">Projeto</p>
           <Link href="/sobre" className="text-white/70 hover:text-white">Sobre</Link>
           <Link href="/privacidade" className="text-white/70 hover:text-white">Privacidade</Link>
-          <span className="text-white/50">Ribeirão Preto · SP</span>
+          <Link href="/municipios/3543402" className="text-white/70 hover:text-white">Visão Lente Ribeirão</Link>
         </div>
       </div>
     </footer>

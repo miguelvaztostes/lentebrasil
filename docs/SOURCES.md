@@ -45,3 +45,8 @@ Uma fonte só muda para `confirmed` quando a URL canônica responde e o conteúd
 - `siconfi_rreo`: receita realizada e fases independentes da despesa, BRL nominal, exercício/6º bimestre por padrão.
 - `cnes_establishments`: contagens agregadas de cadastros do CNES, sem dados pessoais ou identificadores de estabelecimentos na base analítica.
 
+O catálogo nacional mostrado no portal preserva as 165 URLs recebidas no inventário como
+metadados candidatos. A publicação do catálogo não altera o estado de verificação dessas URLs e
+não dispara acesso a elas durante requests de visitantes. As únicas integrações homologadas nesta
+etapa continuam sendo IBGE/SIDRA, Siconfi/RREO e CNES.
+

@@ -29,9 +29,7 @@ class CnesAdapter(SourceAdapter):
         "https://dadosabertos.saude.gov.br/dataset/"
         "cnes-cadastro-nacional-de-estabelecimentos-de-saude"
     )
-    data_url = (
-        "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip"
-    )
+    data_url = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip"
     max_download_bytes = 1_000_000_000
     max_uncompressed_bytes = 5_000_000_000
 
@@ -114,7 +112,9 @@ class CnesAdapter(SourceAdapter):
         directory.mkdir(parents=True, exist_ok=True)
         try:
             with (
-                httpx.Client(headers=headers, follow_redirects=True, timeout=240) as client,
+                httpx.Client(
+                    headers=headers, follow_redirects=True, timeout=240
+                ) as client,
                 client.stream("GET", self.data_url) as response,
             ):
                 if response.status_code == 304:
@@ -138,7 +138,9 @@ class CnesAdapter(SourceAdapter):
                             )
                         ]
                     aggregate_file = state.get("aggregate_file")
-                    aggregate_path = directory / aggregate_file if aggregate_file else None
+                    aggregate_path = (
+                        directory / aggregate_file if aggregate_file else None
+                    )
                     if aggregate_path is None or not aggregate_path.exists():
                         raise SourceValidationError(
                             "Agregado CNES indisponível para o novo recorte",
@@ -223,7 +225,11 @@ class CnesAdapter(SourceAdapter):
                 payload.published_at = datetime.fromisoformat(reference)
             return self._records_from_counts(document["counts"], payload)
         source: io.BytesIO | Path
-        source = io.BytesIO(payload.content) if payload.content is not None else payload.file_path  # type: ignore[assignment]
+        source = (
+            io.BytesIO(payload.content)
+            if payload.content is not None
+            else payload.file_path
+        )  # type: ignore[assignment]
         if source is None:
             raise SourceValidationError("Payload CNES vazio", code="empty_payload")
         try:
@@ -234,7 +240,9 @@ class CnesAdapter(SourceAdapter):
             ) from exc
         try:
             members = [
-                item for item in archive.infolist() if item.filename.lower().endswith(".csv")
+                item
+                for item in archive.infolist()
+                if item.filename.lower().endswith(".csv")
             ]
             if len(members) != 1:
                 raise SourceValidationError(
@@ -246,12 +254,16 @@ class CnesAdapter(SourceAdapter):
             if member.file_size > self.max_uncompressed_bytes or (
                 member.compress_size and member.file_size / member.compress_size > 200
             ):
-                raise SourceValidationError("ZIP CNES excede limites seguros", code="zip_bomb")
+                raise SourceValidationError(
+                    "ZIP CNES excede limites seguros", code="zip_bomb"
+                )
             required = {"CO_IBGE", "CO_MOTIVO_DESAB", "CO_AMBULATORIAL_SUS"}
             counts: dict[str, dict[str, int]] = {}
             self._unknown_codes = set()
             with archive.open(member) as raw:
-                text_stream = io.TextIOWrapper(raw, encoding="latin-1", errors="strict", newline="")
+                text_stream = io.TextIOWrapper(
+                    raw, encoding="latin-1", errors="strict", newline=""
+                )
                 reader = csv.DictReader(text_stream, delimiter=";")
                 fields = set(reader.fieldnames or [])
                 if not required.issubset(fields):
@@ -357,9 +369,9 @@ class CnesAdapter(SourceAdapter):
             )
         by_municipality: dict[str, dict[str, Decimal | None]] = {}
         for record in records:
-            by_municipality.setdefault(record.municipality_ibge_code, {})[record.indicator_code] = (
-                record.value
-            )
+            by_municipality.setdefault(record.municipality_ibge_code, {})[
+                record.indicator_code
+            ] = record.value
         required = {
             "cnes_establishments_registered",
             "cnes_establishments_without_disable_reason",
@@ -371,7 +383,9 @@ class CnesAdapter(SourceAdapter):
             )
         for municipality, values in by_municipality.items():
             if set(values) != required:
-                raise SourceValidationError("Agregados CNES incompletos", code="aggregate_mismatch")
+                raise SourceValidationError(
+                    "Agregados CNES incompletos", code="aggregate_mismatch"
+                )
             total = values["cnes_establishments_registered"]
             if total is None:
                 if any(value is not None for value in values.values()):
@@ -388,12 +402,15 @@ class CnesAdapter(SourceAdapter):
                     details={"municipality": municipality},
                 )
 
-    def after_validate(self, payload: FetchedPayload, records: list[ObservationRecord]) -> None:
+    def after_validate(
+        self, payload: FetchedPayload, records: list[ObservationRecord]
+    ) -> None:
         state = self._load_state()
         if state.get("sha256") == payload.sha256:
             state["processed"] = True
             state["processed_municipalities"] = sorted(
-                set(state.get("processed_municipalities", [])) | self.selected_municipalities
+                set(state.get("processed_municipalities", []))
+                | self.selected_municipalities
             )
             state["processed_at"] = datetime.now(UTC).isoformat()
             self._save_state(state)

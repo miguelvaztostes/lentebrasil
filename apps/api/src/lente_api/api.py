@@ -3,24 +3,27 @@ from __future__ import annotations
 import csv
 import io
 import json
-from datetime import UTC, date, datetime
-from typing import Annotated, Any
+from datetime import UTC, date, datetime, timedelta
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, cast, desc, func, select, text
+from sqlalchemy import and_, cast, desc, func, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from lente_api.database import get_db
+from lente_api.discovery_api import normalize_text, normalized_column, public_status
 from lente_api.models import (
+    CatalogEntry,
     Dataset,
     Indicator,
     IngestionRun,
     Municipality,
     Observation,
     Source,
+    SourceResource,
     SourceSnapshot,
 )
 from lente_api.schemas import IndicatorOut, MunicipalityOut
@@ -133,6 +136,7 @@ def geo_municipalities(
     db: DbSession,
     uf: str | None = Query(None, min_length=2, max_length=2),
     q: str | None = Query(None, max_length=100),
+    sort: Literal["name", "code"] = "name",
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
@@ -143,10 +147,12 @@ def geo_municipalities(
         statement = statement.where(Municipality.state == normalized_uf)
         count_statement = count_statement.where(Municipality.state == normalized_uf)
     if q and q.strip():
-        pattern = f"%{q.strip()}%"
-        statement = statement.where(Municipality.name.ilike(pattern))
-        count_statement = count_statement.where(Municipality.name.ilike(pattern))
-    rows = list(db.scalars(statement.order_by(Municipality.name).limit(limit).offset(offset)))
+        pattern = f"%{normalize_text(q.strip())}%"
+        condition = normalized_column(Municipality.name).like(pattern)
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    ordering = Municipality.ibge_code if sort == "code" else Municipality.name
+    rows = list(db.scalars(statement.order_by(ordering).limit(limit).offset(offset)))
     return _page(
         limit,
         offset,
@@ -158,17 +164,62 @@ def geo_municipalities(
 @router.get("/sources")
 def sources(
     db: DbSession,
-    status: str | None = None,
+    q: str | None = Query(None, max_length=120),
+    area: str | None = Query(None, max_length=120),
+    provider: str | None = Query(None, max_length=200),
+    resource: str | None = Query(None, max_length=140),
+    resource_format: str | None = Query(None, alias="format", max_length=40),
+    status: str | None = Query(None, max_length=40),
+    freshness: Literal["current", "stale", "unknown"] | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    statement = select(Source)
-    count_statement = select(func.count(Source.id))
-    if status:
-        statement = statement.where((Source.status == status) | (Source.source_status == status))
-        count_statement = count_statement.where(
-            (Source.status == status) | (Source.source_status == status)
+    cutoff = datetime.now(UTC) - timedelta(days=400)
+    statement = select(Source).outerjoin(Source.primary_resource)
+    count_statement = select(func.count(Source.id)).outerjoin(Source.primary_resource)
+    conditions = []
+    if q and q.strip():
+        term = f"%{normalize_text(q.strip())}%"
+        conditions.append(
+            or_(
+                normalized_column(Source.provider).like(term),
+                normalized_column(SourceResource.title).like(term),
+            )
         )
+    if area:
+        conditions.append(
+            select(Dataset.id)
+            .where(Dataset.source_id == Source.id, Dataset.domain == area)
+            .exists()
+        )
+    if provider:
+        conditions.append(normalized_column(Source.provider) == normalize_text(provider))
+    if resource:
+        conditions.append(SourceResource.slug == resource)
+    if resource_format:
+        conditions.append(SourceResource.format == resource_format)
+    if status:
+        conditions.append(
+            or_(
+                Source.status == status,
+                Source.source_status == status,
+                Source.connector_status == status,
+            )
+        )
+    if freshness == "current":
+        conditions.append(Source.verified_at >= cutoff)
+    elif freshness == "stale":
+        conditions.append(
+            or_(
+                Source.connector_status == "degraded",
+                and_(Source.verified_at.is_not(None), Source.verified_at < cutoff),
+            )
+        )
+    elif freshness == "unknown":
+        conditions.append(Source.verified_at.is_(None))
+    if conditions:
+        statement = statement.where(*conditions)
+        count_statement = count_statement.where(*conditions)
     rows = list(
         db.scalars(
             statement.options(joinedload(Source.primary_resource))
@@ -191,6 +242,10 @@ def sources(
             "verified_at": row.verified_at,
             "failure_reason": row.failure_reason,
             "external_catalog_id": row.external_catalog_id,
+            "public_status": public_status(
+                source_status=row.source_status,
+                connector_status=row.connector_status,
+            ),
             "resource": None
             if row.primary_resource is None
             else {
@@ -202,21 +257,158 @@ def sources(
         }
         for row in rows
     ]
-    return _page(limit, offset, items, db.scalar(count_statement) or 0)
+    response = _page(limit, offset, items, db.scalar(count_statement) or 0)
+    response["facets"] = {
+        "areas": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Dataset.domain, func.count(func.distinct(Source.id)))
+                .join(Source, Source.id == Dataset.source_id)
+                .group_by(Dataset.domain)
+                .order_by(Dataset.domain)
+            )
+        ],
+        "providers": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Source.provider, func.count(Source.id))
+                .group_by(Source.provider)
+                .order_by(Source.provider)
+            )
+        ],
+        "formats": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(SourceResource.format, func.count(SourceResource.id))
+                .group_by(SourceResource.format)
+                .order_by(SourceResource.format)
+            )
+        ],
+        "resources": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(SourceResource.slug, func.count(Source.id))
+                .join(Source, Source.primary_resource_id == SourceResource.id)
+                .group_by(SourceResource.slug)
+                .order_by(SourceResource.slug)
+            )
+        ],
+        "statuses": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Source.source_status, func.count(Source.id))
+                .group_by(Source.source_status)
+                .order_by(Source.source_status)
+            )
+        ],
+        "freshness": [
+            {
+                "value": "current",
+                "count": db.scalar(
+                    select(func.count(Source.id)).where(Source.verified_at >= cutoff)
+                )
+                or 0,
+            },
+            {
+                "value": "stale",
+                "count": db.scalar(
+                    select(func.count(Source.id)).where(
+                        or_(
+                            Source.connector_status == "degraded",
+                            and_(Source.verified_at.is_not(None), Source.verified_at < cutoff),
+                        )
+                    )
+                )
+                or 0,
+            },
+            {
+                "value": "unknown",
+                "count": db.scalar(
+                    select(func.count(Source.id)).where(Source.verified_at.is_(None))
+                )
+                or 0,
+            },
+        ],
+    }
+    return response
 
 
 @router.get("/datasets")
 def datasets(
     db: DbSession,
-    domain: str | None = None,
+    q: str | None = Query(None, max_length=120),
+    domain: str | None = Query(None, alias="area", max_length=120),
+    provider: str | None = Query(None, max_length=200),
+    resource: str | None = Query(None, max_length=140),
+    resource_format: str | None = Query(None, alias="format", max_length=40),
+    status: str | None = Query(None, max_length=40),
+    granularity: str | None = Query(None, max_length=160),
+    availability: Literal["published", "not_published"] | None = None,
+    license_status: str | None = Query(None, max_length=40),
+    freshness: Literal["current", "stale", "unknown"] | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    statement = select(Dataset)
-    count_statement = select(func.count(Dataset.id))
+    statement = (
+        select(Dataset)
+        .join(Source, Source.id == Dataset.source_id)
+        .outerjoin(SourceResource, SourceResource.id == Dataset.source_resource_id)
+    )
+    count_statement = (
+        select(func.count(Dataset.id))
+        .join(Source, Source.id == Dataset.source_id)
+        .outerjoin(SourceResource, SourceResource.id == Dataset.source_resource_id)
+    )
+    conditions = []
+    if q and q.strip():
+        term = f"%{normalize_text(q.strip())}%"
+        conditions.append(
+            or_(
+                normalized_column(Dataset.title).like(term),
+                normalized_column(Dataset.description).like(term),
+            )
+        )
     if domain:
-        statement = statement.where(Dataset.domain == domain)
-        count_statement = count_statement.where(Dataset.domain == domain)
+        conditions.append(Dataset.domain == domain)
+    if provider:
+        conditions.append(normalized_column(Source.provider) == normalize_text(provider))
+    if resource:
+        conditions.append(SourceResource.slug == resource)
+    if resource_format:
+        conditions.append(SourceResource.format == resource_format)
+    if status:
+        conditions.append(
+            or_(
+                Dataset.status == status,
+                Dataset.connector_status == status,
+                Dataset.publication_status == status,
+            )
+        )
+    if granularity:
+        conditions.append(Dataset.granularity == granularity)
+    if availability:
+        conditions.append(Dataset.publication_status == availability)
+    if license_status:
+        conditions.append(SourceResource.license_status == license_status)
+    cutoff = datetime.now(UTC) - timedelta(days=400)
+    recent_snapshot = (
+        select(SourceSnapshot.id)
+        .where(SourceSnapshot.dataset_id == Dataset.id, SourceSnapshot.fetched_at >= cutoff)
+        .limit(1)
+        .exists()
+    )
+    any_snapshot = (
+        select(SourceSnapshot.id).where(SourceSnapshot.dataset_id == Dataset.id).limit(1).exists()
+    )
+    if freshness == "current":
+        conditions.append(recent_snapshot)
+    elif freshness == "stale":
+        conditions.extend([any_snapshot, ~recent_snapshot])
+    elif freshness == "unknown":
+        conditions.append(~any_snapshot)
+    if conditions:
+        statement = statement.where(*conditions)
+        count_statement = count_statement.where(*conditions)
     rows = list(
         db.scalars(
             statement.options(joinedload(Dataset.source))
@@ -238,17 +430,98 @@ def datasets(
             "publication_status": row.publication_status,
             "external_catalog_id": row.external_catalog_id,
             "source": {"provider": row.source.provider, "url": row.source.source_url},
+            "public_status": public_status(
+                source_status=row.source.source_status,
+                connector_status=row.connector_status,
+                publication_status=row.publication_status,
+            ),
         }
         for row in rows
     ]
-    return _page(limit, offset, items, db.scalar(count_statement) or 0)
+    response = _page(limit, offset, items, db.scalar(count_statement) or 0)
+    response["facets"] = {
+        "areas": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Dataset.domain, func.count(Dataset.id))
+                .group_by(Dataset.domain)
+                .order_by(Dataset.domain)
+            )
+        ],
+        "granularities": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Dataset.granularity, func.count(Dataset.id))
+                .group_by(Dataset.granularity)
+                .order_by(Dataset.granularity)
+            )
+        ],
+        "providers": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Source.provider, func.count(Dataset.id))
+                .join(Dataset, Dataset.source_id == Source.id)
+                .group_by(Source.provider)
+                .order_by(Source.provider)
+            )
+        ],
+        "formats": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(SourceResource.format, func.count(Dataset.id))
+                .join(Dataset, Dataset.source_resource_id == SourceResource.id)
+                .group_by(SourceResource.format)
+                .order_by(SourceResource.format)
+            )
+        ],
+        "resources": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(SourceResource.slug, func.count(Dataset.id))
+                .join(Dataset, Dataset.source_resource_id == SourceResource.id)
+                .group_by(SourceResource.slug)
+                .order_by(SourceResource.slug)
+            )
+        ],
+        "statuses": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Dataset.publication_status, func.count(Dataset.id))
+                .group_by(Dataset.publication_status)
+                .order_by(Dataset.publication_status)
+            )
+        ],
+        "freshness": [
+            {
+                "value": "current",
+                "count": db.scalar(select(func.count(Dataset.id)).where(recent_snapshot)) or 0,
+            },
+            {
+                "value": "stale",
+                "count": db.scalar(
+                    select(func.count(Dataset.id)).where(any_snapshot, ~recent_snapshot)
+                )
+                or 0,
+            },
+            {
+                "value": "unknown",
+                "count": db.scalar(select(func.count(Dataset.id)).where(~any_snapshot)) or 0,
+            },
+        ],
+    }
+    return response
 
 
 @router.get("/indicators")
 def indicators(
     db: DbSession,
-    domain: str | None = None,
+    domain: str | None = Query(None, alias="area", max_length=120),
     q: str | None = Query(None, max_length=100),
+    provider: str | None = Query(None, max_length=200),
+    resource: str | None = Query(None, max_length=140),
+    resource_format: str | None = Query(None, alias="format", max_length=40),
+    status: Literal["published", "unavailable"] | None = None,
+    freshness: Literal["current", "stale", "unknown"] | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
@@ -258,16 +531,130 @@ def indicators(
         statement = statement.where(Indicator.domain == domain)
         count_statement = count_statement.where(Indicator.domain == domain)
     if q:
-        pattern = f"%{q.strip()}%"
-        statement = statement.where(Indicator.label.ilike(pattern))
-        count_statement = count_statement.where(Indicator.label.ilike(pattern))
+        pattern = f"%{normalize_text(q.strip())}%"
+        condition = normalized_column(Indicator.label).like(pattern)
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    related = (
+        select(Observation.id)
+        .join(SourceSnapshot, SourceSnapshot.id == Observation.snapshot_id)
+        .join(Dataset, Dataset.id == SourceSnapshot.dataset_id)
+        .join(Source, Source.id == Dataset.source_id)
+        .outerjoin(SourceResource, SourceResource.id == Dataset.source_resource_id)
+        .where(Observation.indicator_id == Indicator.id)
+    )
+    if provider:
+        condition = related.where(
+            normalized_column(Source.provider) == normalize_text(provider)
+        ).exists()
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    if resource:
+        condition = related.where(SourceResource.slug == resource).exists()
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    if resource_format:
+        condition = related.where(SourceResource.format == resource_format).exists()
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    if status:
+        published = (
+            select(Observation.id).where(Observation.indicator_id == Indicator.id).limit(1).exists()
+        )
+        condition = published if status == "published" else ~published
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    cutoff = datetime.now(UTC) - timedelta(days=400)
+    recent = related.where(SourceSnapshot.fetched_at >= cutoff).exists()
+    any_observation = related.exists()
+    if freshness == "current":
+        statement = statement.where(recent)
+        count_statement = count_statement.where(recent)
+    elif freshness == "stale":
+        statement = statement.where(any_observation, ~recent)
+        count_statement = count_statement.where(any_observation, ~recent)
+    elif freshness == "unknown":
+        statement = statement.where(~any_observation)
+        count_statement = count_statement.where(~any_observation)
     rows = list(db.scalars(statement.order_by(Indicator.label).limit(limit).offset(offset)))
-    return _page(
+    response = _page(
         limit,
         offset,
         [IndicatorOut.model_validate(row).model_dump() for row in rows],
         db.scalar(count_statement) or 0,
     )
+    response["facets"] = {
+        "areas": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Indicator.domain, func.count(Indicator.id))
+                .group_by(Indicator.domain)
+                .order_by(Indicator.domain)
+            )
+        ],
+        "providers": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(Source.provider, func.count(func.distinct(Observation.indicator_id)))
+                .join(Dataset, Dataset.source_id == Source.id)
+                .join(SourceSnapshot, SourceSnapshot.dataset_id == Dataset.id)
+                .join(Observation, Observation.snapshot_id == SourceSnapshot.id)
+                .group_by(Source.provider)
+                .order_by(Source.provider)
+            )
+        ],
+        "formats": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(SourceResource.format, func.count(func.distinct(Observation.indicator_id)))
+                .join(Dataset, Dataset.source_resource_id == SourceResource.id)
+                .join(SourceSnapshot, SourceSnapshot.dataset_id == Dataset.id)
+                .join(Observation, Observation.snapshot_id == SourceSnapshot.id)
+                .group_by(SourceResource.format)
+                .order_by(SourceResource.format)
+            )
+        ],
+        "resources": [
+            {"value": value, "count": count}
+            for value, count in db.execute(
+                select(
+                    SourceResource.slug,
+                    func.count(func.distinct(Observation.indicator_id)),
+                )
+                .join(Dataset, Dataset.source_resource_id == SourceResource.id)
+                .join(SourceSnapshot, SourceSnapshot.dataset_id == Dataset.id)
+                .join(Observation, Observation.snapshot_id == SourceSnapshot.id)
+                .group_by(SourceResource.slug)
+                .order_by(SourceResource.slug)
+            )
+        ],
+        "statuses": [
+            {
+                "value": "published",
+                "count": db.scalar(select(func.count(Indicator.id)).where(any_observation)) or 0,
+            },
+            {
+                "value": "unavailable",
+                "count": db.scalar(select(func.count(Indicator.id)).where(~any_observation)) or 0,
+            },
+        ],
+        "freshness": [
+            {
+                "value": "current",
+                "count": db.scalar(select(func.count(Indicator.id)).where(recent)) or 0,
+            },
+            {
+                "value": "stale",
+                "count": db.scalar(select(func.count(Indicator.id)).where(any_observation, ~recent))
+                or 0,
+            },
+            {
+                "value": "unknown",
+                "count": db.scalar(select(func.count(Indicator.id)).where(~any_observation)) or 0,
+            },
+        ],
+    }
+    return response
 
 
 @router.get("/indicators/{code}/observations")
@@ -334,10 +721,7 @@ def _municipality_summary(db: Session, municipality_code: str) -> dict[str, Any]
         db.scalars(
             _latest_observations_query(eager=True)
             .join(Indicator, Indicator.id == Observation.indicator_id)
-            .where(
-                Observation.municipality_ibge_code == municipality_code,
-                Indicator.code.in_(card_codes),
-            )
+            .where(Observation.municipality_ibge_code == municipality_code)
             .order_by(Observation.period_end.desc())
         )
     )
@@ -354,15 +738,58 @@ def _municipality_summary(db: Session, municipality_code: str) -> dict[str, Any]
                     **_observation_dict(row),
                 }
             )
+    available_indicators = [
+        {
+            "indicator": IndicatorOut.model_validate(row.indicator).model_dump(),
+            **_observation_dict(row),
+        }
+        for row in latest_by_indicator.values()
+    ]
     datasets_rows = list(db.scalars(select(Dataset).order_by(Dataset.domain)))
+    candidate_by_area = dict(
+        db.execute(
+            select(CatalogEntry.area_slug, func.count(CatalogEntry.id))
+            .group_by(CatalogEntry.area_slug)
+            .order_by(CatalogEntry.area_slug)
+        ).all()
+    )
+    published_by_area = dict(
+        db.execute(
+            select(Dataset.domain, func.count(func.distinct(Dataset.id)))
+            .join(SourceSnapshot, SourceSnapshot.dataset_id == Dataset.id)
+            .join(Observation, Observation.snapshot_id == SourceSnapshot.id)
+            .where(Observation.municipality_ibge_code == municipality_code)
+            .group_by(Dataset.domain)
+        ).all()
+    )
+    areas = sorted(set(candidate_by_area) | set(published_by_area))
     return {
         "municipality": MunicipalityOut.model_validate(municipality).model_dump(),
         "generated_at": datetime.now(UTC),
         "cards": cards,
+        "available_indicators": available_indicators,
         "datasets": [
-            {"code": item.code, "title": item.title, "domain": item.domain, "status": item.status}
+            {
+                "code": item.code,
+                "title": item.title,
+                "domain": item.domain,
+                "status": item.status,
+                "publication_status": item.publication_status,
+            }
             for item in datasets_rows
         ],
+        "sectors": [
+            {
+                "slug": area,
+                "candidate_sources": candidate_by_area.get(area, 0),
+                "published_datasets": published_by_area.get(area, 0),
+            }
+            for area in areas
+        ],
+        "catalog_summary": {
+            "candidate_sources": sum(candidate_by_area.values()),
+            "published_datasets": sum(published_by_area.values()),
+        },
         "independent_project": True,
     }
 

@@ -1,6 +1,9 @@
-# Lente Ribeirão
+# Lente Brasil
 
-Observatório público e independente de dados municipais de Ribeirão Preto/SP. O projeto publica somente observações provenientes de fontes oficiais verificadas, com período, unidade, metodologia, coleta e URL de origem.
+Portal público e independente para pesquisa territorial e catálogo nacional de fontes. O projeto
+publica somente observações provenientes de integrações oficiais verificadas, com período,
+unidade, metodologia, coleta e URL de origem. O Lente Ribeirão permanece como a visão destacada
+de Ribeirão Preto/SP na mesma infraestrutura.
 
 Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 2030 ou do Lente Brasil.
 
@@ -11,6 +14,10 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
 - Fundação nacional aditiva para geografia, provedores, recursos, cobertura e releases, sem
   retirar os contratos municipais.
 - Next.js responsivo com página inicial, catálogo, séries, tabelas, fontes, metodologia e dados abertos.
+- Busca sem acentos por município, fonte e tema, filtros persistidos na URL e perfis para qualquer
+  município presente no diretório IBGE.
+- Catálogo público com os 165 candidatos e estados separados de descoberta, conector, licença,
+  cobertura e publicação.
 - Coleta real da população estimada pelo IBGE/SIDRA.
 - Coleta real do RREO/Siconfi, preservando receita, empenho, liquidação e pagamento.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
@@ -88,7 +95,8 @@ O Siconfi respeita uma requisição por segundo. Ajuste o recorte anual com `SIC
 
 ## Catálogo nacional candidato
 
-O inventário nacional versionado é validado e importado somente como metadado. Uma
+O inventário nacional versionado é validado e importado automaticamente, de forma idempotente,
+na inicialização da API e somente como metadado. Uma
 fonte `discovered` continua não integrada até haver verificação e conector ativo. Consulte
 `docs/CATALOGO_NACIONAL.md` para o contrato e os comandos. O JSON original, a planilha mestre e o
 plano técnico original estão preservados em `docs/catalog/input` e `docs/reference`.
@@ -98,8 +106,11 @@ plano técnico original estão preservados em `docs/catalog/input` e `docs/refer
 Principais rotas:
 
 - `GET /api/v1/municipalities`
+- `GET /api/v1/search?q=saude&uf=SP&sector=saude&status=discovered`
 - `GET /api/v1/geo/municipios?uf=SP&q=Campinas&limit=50&offset=0`
 - `GET /api/v1/municipios/{ibge_code}/summary`
+- `GET /api/v1/datasets/{id-ou-code}/coverage`
+- `GET /api/v1/sources/{slug-ou-LNT-id}`
 - `GET /api/v1/sources`
 - `GET /api/v1/datasets`
 - `GET /api/v1/indicators`
@@ -117,8 +128,8 @@ Ribeirão Preto quando o parâmetro é omitido.
 Com os containers em execução:
 
 ```bash
-docker compose run --rm api ruff check /app/apps/api /app/workers/ingestion
-docker compose run --rm api ruff format --check /app/apps/api /app/workers/ingestion
+docker compose run --rm -w /app api ruff check apps/api workers/ingestion --ignore EXE002
+docker compose run --rm -w /app api ruff format --check apps/api workers/ingestion
 docker compose run --rm \
   -e TEST_DATABASE_URL=postgresql+psycopg://lente:lente-local@db:5432/lente \
   api pytest -q

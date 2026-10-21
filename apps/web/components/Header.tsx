@@ -6,11 +6,10 @@ import { useState } from "react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
 const links = [
-  ["Indicadores", "/indicadores"],
-  ["Transparência", "/transparencia"],
-  ["Educação", "/educacao"],
-  ["Saúde", "/saude"],
+  ["Brasil", "/brasil"],
+  ["Buscar", "/buscar"],
   ["Fontes", "/fontes"],
+  ["Lente Ribeirão", "/municipios/3543402"],
   ["Dados abertos", "/dados-abertos"],
 ];
 
@@ -19,8 +18,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-[#fbfaf7]/95 backdrop-blur">
       <div className="container-page flex h-20 items-center justify-between gap-6">
-        <Link href="/" aria-label="Lente Ribeirão — página inicial">
-          <Image src="/lente-ribeirao-logo.svg" alt="Lente Ribeirão" width={188} height={48} priority />
+        <Link href="/" aria-label="Lente Brasil — página inicial" className="flex items-center gap-3">
+          <Image src="/lente-ribeirao-simbolo.svg" alt="" width={42} height={42} priority />
+          <span className="text-xl font-black tracking-tight">Lente Brasil</span>
         </Link>
         <nav aria-label="Navegação principal" className="hidden items-center gap-6 lg:flex">
           {links.map(([label, href]) => (

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from lente_api.api import router
+from lente_api.discovery_api import router as discovery_router
 from lente_api.settings import get_settings
 
 settings = get_settings()
@@ -41,8 +42,8 @@ app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description=(
-        "API pública do observatório independente Lente Ribeirão. "
-        "Cada observação inclui proveniência e referência temporal."
+        "API pública do observatório independente Lente Brasil, com o Lente Ribeirão "
+        "como visão territorial. Cada observação inclui proveniência e referência temporal."
     ),
     docs_url="/api/docs",
     redoc_url="/redoc",
@@ -78,6 +79,7 @@ async def request_context(request: Request, call_next):
     return response
 
 
+app.include_router(discovery_router)
 app.include_router(router)
 
 

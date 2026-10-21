@@ -64,6 +64,9 @@ conflitos ficam em `catalog_imports.discrepancies`.
 - Em banco descartável, duas importações produziram o mesmo SHA/import ID, com 68 provedores,
   121 recursos agrupados, 165 datasets candidatos e 165 entradas. Todos os 121 recursos ficaram
   `not_implemented` e os 165 datasets `not_published`.
+- Na publicação do portal, três vínculos explícitos reconciliam os candidatos `LNT-0003`,
+  `LNT-0018` e `LNT-0093` aos datasets homologados SIDRA, CNES e Siconfi. Os demais candidatos
+  não são promovidos. Mesmo nesses três casos, o estado público `published` exige observação real.
 - Foram preservados 99 vínculos de 95 indicadores com 82 fontes. Quatro conflitos de grafia de
   provedor foram registrados, sem sobrescrever nomes: CNES, Inep/INEP e SENATRAN/Senatran.
 
@@ -93,6 +96,9 @@ Os objetos do Lente Ribeirão são ligados às novas entidades com IDs determin�
 Siconfi e CNES mantêm conectores `active` e releases de compatibilidade `published`; fontes ainda
 manuais não são promovidas. `municipalities`, `sources`, `datasets`, `observations`, URLs, slugs e
 histórico permanecem. O downgrade remove apenas a fundação nova.
+
+A revisão `0005` adiciona `pg_trgm` e índices GIN de texto normalizado. O downgrade remove os
+índices da busca, sem apagar catálogo, observações ou a extensão compartilhada.
 
 ## Manutenção
 

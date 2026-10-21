@@ -165,3 +165,19 @@ continuam sujeitos a revisões das fontes.
 
 O banco de comprovação é descartável e não faz parte da aplicação publicada. A busca nacional no
 frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
+
+## Etapa 2 — catálogo nacional e busca territorial — 21/10/2026
+
+- Inventário publicado: 165 entradas, 68 provedores, 121 recursos deduplicados, 16 setores e 95
+  indicadores propostos. Candidatos não geraram observações fictícias.
+- Rotas territoriais: Brasil, 27 UFs, perfis municipais, setores, busca, catálogo e detalhe de
+  fonte; Ribeirão Preto continua destacado em `/municipios/3543402`.
+- API: busca facetada, municípios sem acentos, resumo municipal, detalhe de fonte e cobertura de
+  dataset responderam 200 no banco descartável.
+- PostgreSQL: migração `0004 → 0005 → 0004 → 0005` preservou as 165 entradas. `EXPLAIN` confirmou
+  `Bitmap Index Scan` nos índices `ix_municipalities_name_search` e
+  `ix_catalog_entries_indicator_search`.
+- Backend: 21 testes aprovados; permanece um aviso de depreciação do TestClient do Starlette.
+- Frontend: teste de conteúdo, typecheck, build de produção com 22 rotas e smoke E2E das rotas de
+  Ribeirão Preto, Campinas, São Paulo, busca compartilhável e detalhe de fonte aprovados.
+- O banco e os dados usados na comprovação são descartáveis e não entram no Git.

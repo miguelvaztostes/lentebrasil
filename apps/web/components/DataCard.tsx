@@ -3,7 +3,7 @@ import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatDate, formatValue, type Indicator, type Observation } from "@/lib/api";
 import { StatusBadge } from "./StatusBadge";
 
-export function DataCard({ indicator, observation }: { indicator: Indicator; observation: Observation }) {
+export function DataCard({ indicator, observation, municipalityCode }: { indicator: Indicator; observation: Observation; municipalityCode?: string }) {
   return (
     <article className="card flex h-full flex-col p-6">
       <div className="flex items-start justify-between gap-4">
@@ -23,7 +23,7 @@ export function DataCard({ indicator, observation }: { indicator: Indicator; obs
           {observation.source.provider}<ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
         </a>
       </div>
-      <Link href={`/indicadores/${indicator.code}`} className="mt-5 text-sm font-bold text-ink hover:text-teal">
+      <Link href={`/indicadores/${indicator.code}${municipalityCode ? `?municipality=${municipalityCode}` : ""}`} className="mt-5 text-sm font-bold text-ink hover:text-teal">
         Ver série e metodologia →
       </Link>
     </article>

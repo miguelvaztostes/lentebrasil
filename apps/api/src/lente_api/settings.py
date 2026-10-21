@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_name: str = "Lente Ribeirão API"
+    app_name: str = "Lente Brasil API"
     environment: str = "development"
     database_url: str = "postgresql+psycopg://lente:lente-local@localhost:5432/lente"
     cors_origins: Annotated[list[str], NoDecode] = [

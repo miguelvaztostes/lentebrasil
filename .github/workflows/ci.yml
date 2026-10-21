@@ -39,6 +39,10 @@ jobs:
         working-directory: apps/api
       - run: pytest -q
         working-directory: apps/api
+      - run: >-
+          python -m lente_api.catalog import
+          ../../docs/catalog/input/lente_inventario_nacional_fontes_2026.json
+        working-directory: apps/api
       - name: Verify safe Alembic downgrade and re-upgrade
         working-directory: apps/api
         run: |
@@ -68,6 +72,13 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - name: Start production frontend
+        run: npm run start > /tmp/lente-web.log 2>&1 &
+      - name: Wait for frontend
+        run: for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/ && exit 0; sleep 1; done; exit 1
+      - name: Territorial route smoke test
+        env: { E2E_BASE_URL: "http://127.0.0.1:3000" }
+        run: node --test tests/routes.e2e.test.mjs
 
   containers:
     runs-on: ubuntu-latest

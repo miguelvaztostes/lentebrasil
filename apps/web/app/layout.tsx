@@ -4,8 +4,8 @@ import { Header } from "@/components/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Lente Ribeirão", template: "%s | Lente Ribeirão" },
-  description: "Dados públicos rastreáveis sobre Ribeirão Preto, com fonte, método e histórico.",
+  title: { default: "Lente Brasil", template: "%s | Lente Brasil" },
+  description: "Catálogo nacional e dados públicos municipais homologados, com fonte, método e histórico.",
   icons: { icon: "/lente-ribeirao-simbolo.svg" },
 };
 

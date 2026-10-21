@@ -29,6 +29,11 @@ from lente_api.models import (
 REFERENCE_RECORDS = 165
 REFERENCE_AREAS = 16
 REFERENCE_INDICATORS = 95
+HOMOLOGATED_DATASET_LINKS = {
+    "LNT-0003": "ibge_population",
+    "LNT-0018": "cnes_establishments",
+    "LNT-0093": "siconfi_rreo",
+}
 ALLOWED_FORMATS = {
     "api",
     "csv",
@@ -705,6 +710,8 @@ def import_candidate_catalog(
                 discrepancies,
                 indicator_links.get(external_id, []),
             )
+        if report.record_count == REFERENCE_RECORDS:
+            _link_homologated_datasets(db)
         combined_discrepancies = list(catalog_import.discrepancies or []) + discrepancies
         catalog_import.discrepancies = list(
             {
@@ -717,6 +724,19 @@ def import_candidate_catalog(
         db.rollback()
         raise
     return _summary(db, catalog_import, already_imported=already_imported)
+
+
+def _link_homologated_datasets(db: Session) -> None:
+    """Connect only explicitly homologated inventory entries to active datasets."""
+    for external_id, dataset_code in HOMOLOGATED_DATASET_LINKS.items():
+        entry = db.scalar(
+            select(CatalogEntry).where(CatalogEntry.external_catalog_id == external_id)
+        )
+        dataset = db.scalar(select(Dataset).where(Dataset.code == dataset_code))
+        if entry is None or dataset is None:
+            continue
+        entry.dataset_id = dataset.id
+        entry.source_resource_id = dataset.source_resource_id
 
 
 def _import_record(

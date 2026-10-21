@@ -103,3 +103,18 @@ docs → migração/catálogo → API → adaptador IBGE → UI → Siconfi/CNES
 
 A busca territorial completa e as rotas públicas nacionais continuam reservadas para a etapa 2.
 
+## Etapa 2 — catálogo público e busca territorial concluída em 21/10/2026
+
+- O portal passa a se chamar Lente Brasil; Lente Ribeirão permanece como visão territorial de
+  Ribeirão Preto e não como aplicação separada.
+- As rotas `/brasil`, `/estados/[uf]`, `/municipios/[ibgeCode]`, visão setorial, `/buscar` e
+  detalhes de fontes permitem navegação anônima e responsiva.
+- O inventário de 165 candidatos é importado idempotentemente ao iniciar a API. Somente os IDs
+  explicitamente reconciliados a SIDRA, CNES e Siconfi apontam para conectores homologados.
+- Busca por texto usa normalização de acentos no PostgreSQL e índices GIN/trigrama; filtros,
+  ordenação, contagem e paginação permanecem no banco.
+- “Dados publicados” depende de observações existentes. Um dataset cadastrado ou uma fonte
+  descoberta não produz gráfico, número ou cobertura presumida.
+- Filtros do frontend são codificados na URL; estados de carregamento, erro e vazio mantêm a
+  distinção entre ausência e zero.
+

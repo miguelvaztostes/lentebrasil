@@ -11,7 +11,8 @@ RUN pip install --no-cache-dir '/app/apps/api[dev]'
 
 COPY apps/api /app/apps/api
 COPY workers/ingestion /app/workers/ingestion
+COPY docs/catalog/input/lente_inventario_nacional_fontes_2026.json /app/docs/catalog/input/lente_inventario_nacional_fontes_2026.json
 
 WORKDIR /app/apps/api
-CMD ["sh", "-c", "alembic upgrade head && uvicorn lente_api.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && python -m lente_api.catalog import /app/docs/catalog/input/lente_inventario_nacional_fontes_2026.json && uvicorn lente_api.main:app --host 0.0.0.0 --port 8000"]
 

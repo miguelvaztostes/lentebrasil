@@ -5,15 +5,17 @@ from dataclasses import asdict
 from pathlib import Path
 
 import typer
+from lente_api.database import SessionLocal
+from lente_api.settings import get_settings
 
 from ingestion.adapters import ADAPTERS
 from ingestion.factory import build_adapter, select_municipalities
 from ingestion.geography import sync_official_geographies
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
-from lente_api.database import SessionLocal
-from lente_api.settings import get_settings
 
-app = typer.Typer(help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True)
+app = typer.Typer(
+    help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True
+)
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -63,7 +65,9 @@ def ingest(
         None,
         help="Códigos IBGE separados por vírgula; padrão compatível: Ribeirão Preto",
     ),
-    uf: str | None = typer.Option(None, help="Seleciona os municípios cadastrados de uma UF"),
+    uf: str | None = typer.Option(
+        None, help="Seleciona os municípios cadastrados de uma UF"
+    ),
     start_year: int | None = None,
     end_year: int | None = None,
     periods: str = "6",
@@ -144,7 +148,9 @@ def schedule(
     with SessionLocal() as db:
         if source == "siconfi":
             selected = select_municipalities(
-                db, municipality_codes=parameters.pop("municipality_codes"), uf=parameters.pop("uf")
+                db,
+                municipality_codes=parameters.pop("municipality_codes"),
+                uf=parameters.pop("uf"),
             )
             first = start_year if start_year is not None else 2022
             last = end_year if end_year is not None else 2025
@@ -166,7 +172,9 @@ def schedule(
         else:
             jobs = [schedule_job(db, source, parameters)]
     typer.echo(
-        json.dumps([{"job_key": job.job_key, "status": job.status} for job in jobs], indent=2)
+        json.dumps(
+            [{"job_key": job.job_key, "status": job.status} for job in jobs], indent=2
+        )
     )
 
 

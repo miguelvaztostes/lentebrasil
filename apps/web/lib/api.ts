@@ -17,6 +17,9 @@ export type SourceInfo = {
   url: string;
   sha256: string;
   fetched_at: string;
+  license: string | null;
+  source_status: string;
+  connector_status: string;
 };
 
 export type Observation = {
@@ -37,6 +40,79 @@ export type IndicatorResponse = {
   municipality: { ibge_code: string; name: string; state: string };
   items: Observation[];
   count: number;
+};
+
+export type Municipality = { ibge_code: string; name: string; state: string };
+
+export type SummaryCard = Observation & { indicator: Indicator };
+
+export type MunicipalitySummary = {
+  municipality: Municipality;
+  generated_at: string;
+  cards: SummaryCard[];
+  available_indicators: SummaryCard[];
+  datasets: Array<{
+    code: string;
+    title: string;
+    domain: string;
+    status: string;
+    publication_status: string;
+  }>;
+  sectors: Array<{ slug: string; candidate_sources: number; published_datasets: number }>;
+  catalog_summary: { candidate_sources: number; published_datasets: number };
+};
+
+export type SearchItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  area: string;
+  area_label: string;
+  provider: { slug: string; name: string };
+  resource: null | {
+    slug: string;
+    title: string;
+    url: string | null;
+    format: string;
+    source_status: string;
+    connector_status: string;
+    license_status: string;
+    license: string | null;
+    last_verified_at: string | null;
+  };
+  dataset: null | {
+    id: string;
+    code: string;
+    granularity: string;
+    update_policy: string;
+    publication_status: string;
+  };
+  status: string;
+  source_status: string;
+  connector_status: string;
+  publication_status: string;
+  reference_period: string | null;
+  collected_at: string | null;
+};
+
+export type Facet = { value: string; count: number };
+
+export type SearchResponse = {
+  items: SearchItem[];
+  municipalities: Municipality[];
+  count: number;
+  limit: number;
+  offset: number;
+  facets: {
+    sectors: Facet[];
+    providers: Facet[];
+    formats: Facet[];
+    resources: Facet[];
+    license_statuses: Facet[];
+    statuses: Facet[];
+    freshness: Facet[];
+  };
+  summary: { candidate_sources: number; published_datasets: number };
 };
 
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
