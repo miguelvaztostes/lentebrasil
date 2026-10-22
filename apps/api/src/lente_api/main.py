@@ -11,6 +11,7 @@ from fastapi.responses import RedirectResponse
 
 from lente_api.api import router
 from lente_api.discovery_api import router as discovery_router
+from lente_api.education_api import router as education_router
 from lente_api.settings import get_settings
 
 settings = get_settings()
@@ -80,6 +81,7 @@ async def request_context(request: Request, call_next):
 
 
 app.include_router(discovery_router)
+app.include_router(education_router)
 app.include_router(router)
 
 

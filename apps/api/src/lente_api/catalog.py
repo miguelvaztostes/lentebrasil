@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from lente_api.database import SessionLocal
+from lente_api.education_decisions import DECIDED_AT, EDUCATION_DECISIONS
 from lente_api.models import (
     CatalogEntry,
     CatalogImport,
@@ -33,6 +34,8 @@ HOMOLOGATED_DATASET_LINKS = {
     "LNT-0003": "ibge_population",
     "LNT-0018": "cnes_establishments",
     "LNT-0093": "siconfi_rreo",
+    "LNT-0007": "inep_censo_escolar",
+    "LNT-0009": "inep_ideb_municipal",
 }
 ALLOWED_FORMATS = {
     "api",
@@ -736,7 +739,8 @@ def _link_homologated_datasets(db: Session) -> None:
         if entry is None or dataset is None:
             continue
         entry.dataset_id = dataset.id
-        entry.source_resource_id = dataset.source_resource_id
+        if dataset.source_resource_id is not None:
+            entry.source_resource_id = dataset.source_resource_id
 
 
 def _import_record(
@@ -912,6 +916,14 @@ def _import_record(
         entry.indicator_refs = indicator_refs
         entry.raw_record = record
         entry.imported_at = imported_at
+    decision = EDUCATION_DECISIONS.get(external_id)
+    if decision:
+        entry.integration_decision, entry.decision_reason = decision
+        entry.decided_at = DECIDED_AT
+        if decision[0] == "integrate" and resource is not None:
+            resource.source_status = "verified"
+            resource.connector_status = "implemented"
+            resource.last_verified_at = DECIDED_AT
 
 
 def _summary(

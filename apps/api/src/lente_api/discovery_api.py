@@ -167,6 +167,9 @@ def _catalog_item(
         "source_status": source_status,
         "connector_status": connector_status,
         "publication_status": publication_status,
+        "integration_decision": entry.integration_decision,
+        "decision_reason": entry.decision_reason,
+        "decided_at": entry.decided_at,
         "reference_period": None,
         "collected_at": None,
     }

@@ -27,7 +27,8 @@ Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa
 | IBGE SIDRA, tabela 6579, variável 9324 | `confirmed` | `https://apisidra.ibge.gov.br/values/t/6579/n6/3543402/v/9324/p/last%2010?formato=json` | JSON; uso com atribuição ao IBGE, termos específicos a revisar | HTTP 200; em 09/10/2026 retornou, entre outros, população residente estimada de `734538` pessoas para 2026. Primeira integração vertical. |
 | Tesouro Nacional / Siconfi, RREO Anexo 01 | `confirmed` | `https://apidatalake.tesouro.gov.br/ords/cdwhprd/siconfi/tt/rreo` | JSON; Apache 2.0; limite publicado de 1 requisição/s | Consulta 2025, 6º bimestre, ente `3543402` retornou 513 registros. Integração fiscal usa rubricas e colunas explicitamente selecionadas, sem somar fases. |
 | Tesouro Nacional / documentação | `confirmed` | `https://apidatalake.tesouro.gov.br/docs/siconfi/` e `https://apidatalake.tesouro.gov.br/docs/siconfi.yaml` | OpenAPI/Swagger YAML; Apache 2.0 | Contrato e parâmetros obrigatórios confirmados. |
-| INEP / IDEB 2005–2025 | `requires_manual_import` | `https://www.gov.br/inep/pt-br/areas-de-atuacao/pesquisas-estatisticas-e-indicadores/ideb/resultados` | Página oficial e planilhas oficiais | HTTP 200; a página registra a série 2005–2025 e arquivos municipais, mas o link direto do pacote não foi exposto no HTML estático consultado. Não automatizar até validar arquivo, abas e cabeçalhos. |
+| INEP / Censo Escolar 2024 | `confirmed` | `https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip` | ZIP/CSV oficial; termos/LGPD do Inep | HTTP 200; artefato, encoding, delimitador, schema e dicionário inspecionados em 21/10/2026. Conector usa somente campos escolares agregados publicáveis. |
+| INEP / IDEB 2005–2025 | `confirmed` | `https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip` | ZIP/XLSX e notas oficiais | HTTP 200; pacote municipal 2025 e cabeçalhos da planilha validados em 21/10/2026. Supressões são preservadas. |
 | Ministério da Saúde / CNES estabelecimentos | `confirmed` | `https://dadosabertos.saude.gov.br/dataset/cnes-cadastro-nacional-de-estabelecimentos-de-saude` e `https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip` | ZIP/CSV, delimitador `;`, bytes Latin-1/Windows-1252 observados; licença do portal a confirmar por recurso | HTTP 200; `Last-Modified: 09/10/2026`, 56.460.257 bytes compactados. O CSV tem 4.350 linhas para código municipal CNES `354340`. O pipeline persiste apenas agregados e hash, não nomes/telefones/e-mails. |
 | Prefeitura de Ribeirão Preto / orçamento | `requires_manual_import` | `https://www.ribeiraopreto.sp.gov.br/portal/transparencia/orcamento` | HTML e PDFs históricos; licença não declarada na página auditada | HTTP 200. Foram localizados PDFs de 2007–2021 e páginas de consulta, mas nenhum CSV/XLSX/JSON reutilizável na página inicial. O Siconfi cobre o primeiro recorte fiscal. |
 | Câmara Municipal de Ribeirão Preto | `pending` | `https://www.camararibeiraopreto.sp.gov.br/` | HTML | HTTP 200. Nenhuma API ou exportação de votos nominais foi presumida; módulo legislativo permanece fora do MVP. |
@@ -44,9 +45,12 @@ Uma fonte só muda para `confirmed` quando a URL canônica responde e o conteúd
 - `ibge_population`: população residente estimada, pessoas, periodicidade anual.
 - `siconfi_rreo`: receita realizada e fases independentes da despesa, BRL nominal, exercício/6º bimestre por padrão.
 - `cnes_establishments`: contagens agregadas de cadastros do CNES, sem dados pessoais ou identificadores de estabelecimentos na base analítica.
+- `inep_censo_escolar`: escolas e matrículas agregadas por etapa, Censo Escolar 2024.
+- `inep_ideb_municipal`: Ideb e componentes municipais/rede, anos iniciais de 2025.
 
 O catálogo nacional mostrado no portal preserva as 165 URLs recebidas no inventário como
 metadados candidatos. A publicação do catálogo não altera o estado de verificação dessas URLs e
-não dispara acesso a elas durante requests de visitantes. As únicas integrações homologadas nesta
-etapa continuam sendo IBGE/SIDRA, Siconfi/RREO e CNES.
+não dispara acesso a elas durante requests de visitantes. Além das três integrações anteriores, a
+Onda 3A homologou Censo Escolar e Ideb; os demais IDs educacionais permanecem nas decisões
+documentadas em `EDUCATION_SOURCES.md`.
 

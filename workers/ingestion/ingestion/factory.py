@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ingestion.adapters.cnes import CnesAdapter
+from ingestion.adapters.education import InepCensoEscolarAdapter, InepIdebAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
 
@@ -50,9 +51,7 @@ def build_adapter(
     batch_size: int = 50,
     max_requests: int = 250,
 ) -> Any:
-    municipalities = select_municipalities(
-        db, municipality_codes=municipality_codes, uf=uf
-    )
+    municipalities = select_municipalities(db, municipality_codes=municipality_codes, uf=uf)
     codes = [item.ibge_code for item in municipalities]
     if source == "ibge":
         period_range = None
@@ -64,8 +63,7 @@ def build_adapter(
         return IbgePopulationAdapter(
             raw_data_dir=raw_data_dir,
             geographies={
-                item.ibge_code: {"name": item.name, "state": item.state}
-                for item in municipalities
+                item.ibge_code: {"name": item.name, "state": item.state} for item in municipalities
             },
             period_range=period_range,
             resource_version=resource_version,
@@ -98,10 +96,18 @@ def build_adapter(
         ).all()
         return CnesAdapter(
             raw_data_dir=raw_data_dir,
-            municipality_crosswalk={
-                external: canonical for external, canonical in mappings
-            },
+            municipality_crosswalk={external: canonical for external, canonical in mappings},
             selected_municipalities=set(codes),
             resource_version=resource_version,
         )
+    if source == "censo_escolar":
+        if start_year not in {None, 2024} or end_year not in {None, 2024}:
+            raise ValueError("Apenas o schema homologado do Censo Escolar 2024 está disponível")
+        return InepCensoEscolarAdapter(
+            raw_data_dir=raw_data_dir, selected_municipalities=set(codes)
+        )
+    if source == "ideb":
+        if start_year not in {None, 2025} or end_year not in {None, 2025}:
+            raise ValueError("Apenas o pacote homologado do Ideb 2025 está disponível")
+        return InepIdebAdapter(raw_data_dir=raw_data_dir, selected_municipalities=set(codes))
     raise ValueError(f"Fonte desconhecida: {source}")

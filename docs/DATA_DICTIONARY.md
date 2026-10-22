@@ -23,8 +23,22 @@
 | `source_resources` | URL, formato, licença e estados | Recurso concreto; pode existir sem conector e sem dados. |
 | `catalog_imports` | versão, SHA-256 e discrepâncias | Execução idempotente de um arquivo candidato. |
 | `catalog_entries` | `external_catalog_id`, `raw_record` | Registro original e vínculos sem perda do metadado recebido. |
+|  | `integration_decision`, `decision_reason`, `decided_at` | Decisão auditável por ID do inventário; não equivale a publicação. |
 | `dataset_coverage` | geografia, escopo, período e status | Cobertura aferida; nunca inferida pela presença do dataset. |
 | `publication_releases` | chave, período, estado e proveniência | Unidade explícita de validação/publicação. |
+
+## Educação
+
+| Tabela | Grão | Conteúdo publicável |
+|---|---|---|
+| `schools` | escola Inep | Identidade estável e município atual observado. |
+| `school_versions` | escola/ano/release | Nome, município, situação, dependência, localização e infraestrutura declarada; histórico não é sobrescrito. |
+| `education_enrollments` | escola/ano/etapa/release | Total agregado ou `NULL` com estado de disponibilidade. |
+| `education_metrics` | município/ano/indicador/rede/etapa/release | Ideb, rendimento e componentes Saeb exatamente como publicados, inclusive supressão. |
+| `education_networks`, `education_dependencies`, `education_stages` | dimensão | Vocabulários explícitos; rede pública agregada não é confundida com dependência administrativa. |
+
+Os fatos educacionais só são consultados quando seu `publication_releases.status` é `published`.
+Não há tabela de aluno ou profissional, nem armazenamento de contatos/endereço/CNPJ escolar.
 
 ## Indicadores e observações
 

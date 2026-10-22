@@ -9,13 +9,12 @@ from lente_api.database import SessionLocal
 from lente_api.settings import get_settings
 
 from ingestion.adapters import ADAPTERS
+from ingestion.adapters.education import rollback_education_release
 from ingestion.factory import build_adapter, select_municipalities
 from ingestion.geography import sync_official_geographies
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
 
-app = typer.Typer(
-    help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True
-)
+app = typer.Typer(help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True)
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -59,15 +58,13 @@ def geo_sync() -> None:
 
 @app.command()
 def ingest(
-    source: str = typer.Option(..., help="ibge, siconfi, cnes ou all"),
+    source: str = typer.Option(..., help="ibge, siconfi, cnes, censo_escolar, ideb ou all"),
     dry_run: bool = typer.Option(False, help="Coleta e valida sem gravar no banco"),
     municipalities: str | None = typer.Option(
         None,
         help="Códigos IBGE separados por vírgula; padrão compatível: Ribeirão Preto",
     ),
-    uf: str | None = typer.Option(
-        None, help="Seleciona os municípios cadastrados de uma UF"
-    ),
+    uf: str | None = typer.Option(None, help="Seleciona os municípios cadastrados de uma UF"),
     start_year: int | None = None,
     end_year: int | None = None,
     periods: str = "6",
@@ -120,7 +117,7 @@ def ingest(
 
 @app.command("schedule")
 def schedule(
-    source: str = typer.Option(..., help="ibge, siconfi ou cnes"),
+    source: str = typer.Option(..., help="ibge, siconfi, cnes, censo_escolar ou ideb"),
     municipalities: str | None = None,
     uf: str | None = None,
     start_year: int | None = None,
@@ -172,9 +169,7 @@ def schedule(
         else:
             jobs = [schedule_job(db, source, parameters)]
     typer.echo(
-        json.dumps(
-            [{"job_key": job.job_key, "status": job.status} for job in jobs], indent=2
-        )
+        json.dumps([{"job_key": job.job_key, "status": job.status} for job in jobs], indent=2)
     )
 
 
@@ -191,7 +186,7 @@ def work_once() -> None:
 
 @app.command()
 def health(
-    source: str = typer.Option("all", help="ibge, siconfi, cnes ou all"),
+    source: str = typer.Option("all", help="ibge, siconfi, cnes, censo_escolar, ideb ou all"),
     municipalities: str | None = None,
 ) -> None:
     selected = list(ADAPTERS) if source == "all" else [source]
@@ -208,6 +203,18 @@ def health(
             )
             results[item] = adapter.health()
     typer.echo(json.dumps(results, ensure_ascii=False, default=str, indent=2))
+
+
+@app.command("education-rollback")
+def education_rollback(
+    dataset: str = typer.Option(..., help="inep_censo_escolar ou inep_ideb_municipal"),
+    release: str = typer.Option(..., help="Chave exata do release publicado"),
+) -> None:
+    if dataset not in {"inep_censo_escolar", "inep_ideb_municipal"}:
+        raise typer.BadParameter("Dataset educacional inválido")
+    with SessionLocal() as db:
+        restored = rollback_education_release(db, dataset, release)
+    typer.echo(json.dumps({"withdrawn": release, "restored": restored}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

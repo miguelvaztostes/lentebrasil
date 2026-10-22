@@ -1,0 +1,282 @@
+from __future__ import annotations
+
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from lente_api.database import get_db
+from lente_api.models import (
+    Dataset,
+    EducationDependency,
+    EducationEnrollment,
+    EducationMetric,
+    Municipality,
+    PublicationRelease,
+    SchoolVersion,
+    Source,
+)
+
+router = APIRouter(prefix="/api/v1/education", tags=["education"])
+DbSession = Annotated[Session, Depends(get_db)]
+
+
+def _published_release(db: Session, dataset_code: str) -> tuple[Dataset, PublicationRelease] | None:
+    row = db.execute(
+        select(Dataset, PublicationRelease)
+        .join(PublicationRelease, PublicationRelease.dataset_id == Dataset.id)
+        .where(Dataset.code == dataset_code, PublicationRelease.status == "published")
+        .order_by(PublicationRelease.reference_end.desc(), PublicationRelease.published_at.desc())
+        .limit(1)
+    ).first()
+    return (row[0], row[1]) if row else None
+
+
+def _source(db: Session, dataset: Dataset, release: PublicationRelease) -> dict[str, Any]:
+    source = db.get(Source, dataset.source_id)
+    return {
+        "dataset": dataset.code,
+        "provider": source.provider if source else None,
+        "url": source.source_url if source else None,
+        "license": source.license if source else None,
+        "release": release.release_key,
+        "reference_start": release.reference_start,
+        "reference_end": release.reference_end,
+        "published_at": release.published_at,
+        "provenance": release.provenance,
+    }
+
+
+@router.get("/schools")
+def schools(
+    db: DbSession,
+    municipality: str | None = Query(None, pattern=r"^\d{7}$"),
+    uf: str | None = Query(None, min_length=2, max_length=2),
+    network: str | None = None,
+    dependency: str | None = None,
+    operating_status: str | None = None,
+    q: str | None = Query(None, max_length=120),
+    year: int | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    current = _published_release(db, "inep_censo_escolar")
+    if current is None:
+        return {"items": [], "count": 0, "limit": limit, "offset": offset, "source": None}
+    dataset, release = current
+    statement = (
+        select(SchoolVersion)
+        .join(EducationDependency, EducationDependency.code == SchoolVersion.dependency_code)
+        .where(SchoolVersion.release_id == release.id)
+    )
+    if municipality:
+        statement = statement.where(SchoolVersion.municipality_ibge_code == municipality)
+    if uf:
+        statement = statement.where(SchoolVersion.state == uf.upper())
+    if network:
+        statement = statement.where(EducationDependency.network_code == network)
+    if dependency:
+        statement = statement.where(SchoolVersion.dependency_code == dependency)
+    if operating_status:
+        statement = statement.where(SchoolVersion.operating_status == operating_status)
+    if year:
+        statement = statement.where(SchoolVersion.census_year == year)
+    if q:
+        statement = statement.where(SchoolVersion.name.ilike(f"%{q.strip()}%"))
+    count = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    rows = db.scalars(
+        statement.order_by(SchoolVersion.name, SchoolVersion.school_inep_code)
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return {
+        "items": [
+            {
+                "inep_code": row.school_inep_code,
+                "name": row.name,
+                "municipality_ibge_code": row.municipality_ibge_code,
+                "state": row.state,
+                "year": row.census_year,
+                "dependency_code": row.dependency_code,
+                "network": db.get(EducationDependency, row.dependency_code).network_code,
+                "operating_status": row.operating_status,
+                "location_type": row.location_type,
+                "infrastructure": row.infrastructure,
+            }
+            for row in rows
+        ],
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "source": _source(db, dataset, release),
+    }
+
+
+@router.get("/schools/{inep_code}")
+def school_detail(inep_code: str, db: DbSession) -> dict[str, Any]:
+    if len(inep_code) != 8 or not inep_code.isdigit():
+        raise HTTPException(400, "Código Inep deve ter oito dígitos")
+    current = _published_release(db, "inep_censo_escolar")
+    if current is None:
+        raise HTTPException(404, "Nenhum release do Censo Escolar publicado")
+    dataset, release = current
+    row = db.scalar(
+        select(SchoolVersion).where(
+            SchoolVersion.release_id == release.id, SchoolVersion.school_inep_code == inep_code
+        )
+    )
+    if row is None:
+        raise HTTPException(404, "Escola não encontrada no release publicado")
+    enrollment_rows = db.scalars(
+        select(EducationEnrollment)
+        .where(
+            EducationEnrollment.release_id == release.id,
+            EducationEnrollment.school_inep_code == inep_code,
+        )
+        .order_by(EducationEnrollment.stage_code)
+    ).all()
+    return {
+        "inep_code": row.school_inep_code,
+        "name": row.name,
+        "municipality_ibge_code": row.municipality_ibge_code,
+        "state": row.state,
+        "year": row.census_year,
+        "dependency_code": row.dependency_code,
+        "operating_status": row.operating_status,
+        "location_type": row.location_type,
+        "infrastructure": row.infrastructure,
+        "enrollments": [
+            {
+                "stage": item.stage_code,
+                "value": item.enrollment_count,
+                "availability_status": item.availability_status,
+            }
+            for item in enrollment_rows
+        ],
+        "source": _source(db, dataset, release),
+    }
+
+
+@router.get("/metrics")
+def metrics(
+    db: DbSession,
+    municipality: str | None = Query(None, pattern=r"^\d{7}$"),
+    year: int | None = None,
+    stage: str | None = None,
+    network: str | None = None,
+    indicator: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    current = _published_release(db, "inep_ideb_municipal")
+    if current is None:
+        return {"items": [], "count": 0, "limit": limit, "offset": offset, "source": None}
+    dataset, release = current
+    statement = select(EducationMetric).where(EducationMetric.release_id == release.id)
+    for column, value in (
+        (EducationMetric.municipality_ibge_code, municipality),
+        (EducationMetric.reference_year, year),
+        (EducationMetric.stage_code, stage),
+        (EducationMetric.network_code, network),
+        (EducationMetric.metric_code, indicator),
+    ):
+        if value is not None:
+            statement = statement.where(column == value)
+    count = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    rows = db.scalars(
+        statement.order_by(
+            EducationMetric.municipality_ibge_code,
+            EducationMetric.metric_code,
+            EducationMetric.network_code,
+        )
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return {
+        "items": [
+            {
+                "municipality_ibge_code": row.municipality_ibge_code,
+                "year": row.reference_year,
+                "indicator": row.metric_code,
+                "network": row.network_code,
+                "stage": row.stage_code,
+                "value": row.value,
+                "availability_status": row.availability_status,
+            }
+            for row in rows
+        ],
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "source": _source(db, dataset, release),
+    }
+
+
+@router.get("/municipalities/{code}")
+def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
+    if len(code) != 7 or not code.isdigit():
+        raise HTTPException(400, "Código IBGE municipal deve ter sete dígitos")
+    municipality = db.get(Municipality, code)
+    if municipality is None:
+        raise HTTPException(404, "Município não encontrado")
+    censo = _published_release(db, "inep_censo_escolar")
+    ideb = _published_release(db, "inep_ideb_municipal")
+    school_count = 0
+    enrollment_total = None
+    schools_source = None
+    if censo:
+        dataset, release = censo
+        school_count = (
+            db.scalar(
+                select(func.count(SchoolVersion.id)).where(
+                    SchoolVersion.release_id == release.id,
+                    SchoolVersion.municipality_ibge_code == code,
+                )
+            )
+            or 0
+        )
+        enrollment_total = db.scalar(
+            select(func.sum(EducationEnrollment.enrollment_count)).where(
+                EducationEnrollment.release_id == release.id,
+                EducationEnrollment.municipality_ibge_code == code,
+                EducationEnrollment.stage_code == "all_basic",
+                EducationEnrollment.availability_status == "available",
+            )
+        )
+        schools_source = _source(db, dataset, release)
+    metric_items: list[dict[str, Any]] = []
+    metrics_source = None
+    if ideb:
+        dataset, release = ideb
+        rows = db.scalars(
+            select(EducationMetric)
+            .where(
+                EducationMetric.release_id == release.id,
+                EducationMetric.municipality_ibge_code == code,
+            )
+            .order_by(EducationMetric.metric_code, EducationMetric.network_code)
+        ).all()
+        metric_items = [
+            {
+                "year": row.reference_year,
+                "indicator": row.metric_code,
+                "network": row.network_code,
+                "stage": row.stage_code,
+                "value": row.value,
+                "availability_status": row.availability_status,
+            }
+            for row in rows
+        ]
+        metrics_source = _source(db, dataset, release)
+    return {
+        "municipality": {
+            "ibge_code": municipality.ibge_code,
+            "name": municipality.name,
+            "state": municipality.state,
+        },
+        "school_count": school_count,
+        "enrollment_total": enrollment_total,
+        "metrics": metric_items,
+        "sources": {"schools": schools_source, "metrics": metrics_source},
+    }

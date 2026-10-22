@@ -81,7 +81,17 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 - Um valor alterado para a mesma chave lógica cria nova revisão; uma repetição idêntica não cria duplicata.
 - Ausência de dado é `NULL`/`unavailable`, nunca zero.
 - O frontend deve tolerar API temporariamente indisponível com mensagem explícita e sem números de fallback.
-- IDEB 2025 aparece no portal do Inep, mas o link direto do arquivo municipal é gerado na página e precisa de validação de parser antes da automação.
+- Censo Escolar 2024 e Ideb municipal 2025 foram homologados na Onda 3A; novas edições só entram após validação explícita de schema e reconciliação.
+
+## Etapa 3A — educação
+
+- Modelo histórico separado para escola, matrículas e métricas; publicação por release atômico.
+- Conectores versionados do Censo Escolar 2024 e Ideb 2025 com staging, hash, limites de ZIP,
+  whitelist de host/schema e seleção por município ou UF.
+- API educacional não aciona provedores externos e preserva ausência/supressão.
+- Dashboard municipal e detalhe público de escola não armazenam nem exibem dados pessoais.
+- Próximo backlog verificável: Saeb em RAR, indicadores anuais e programas FNDE, cada qual como
+  recurso independente; não ampliar antes de reconciliação com total oficial.
 
 ## Ordem de execução
 

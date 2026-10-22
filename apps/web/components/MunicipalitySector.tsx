@@ -5,8 +5,14 @@ import { useEffect, useState } from "react";
 import { DataCard } from "./DataCard";
 import { ErrorState, LoadingState } from "./LoadingState";
 import { fetchJson, type MunicipalitySummary } from "@/lib/api";
+import { EducationDashboard } from "./EducationDashboard";
 
 export function MunicipalitySector({ code, sector }: { code: string; sector: string }) {
+  if (sector === "educacao") return <EducationDashboard code={code} />;
+  return <GenericMunicipalitySector code={code} sector={sector} />;
+}
+
+function GenericMunicipalitySector({ code, sector }: { code: string; sector: string }) {
   const [data, setData] = useState<MunicipalitySummary | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {

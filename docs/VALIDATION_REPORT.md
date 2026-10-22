@@ -181,3 +181,26 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
 - Frontend: teste de conteúdo, typecheck, build de produção com 22 rotas e smoke E2E das rotas de
   Ribeirão Preto, Campinas, São Paulo, busca compartilhável e detalhe de fonte aprovados.
 - O banco e os dados usados na comprovação são descartáveis e não entram no Git.
+
+## Etapa 3A — educação — 21/10/2026
+
+- Artefatos oficiais verificados: Censo Escolar 2024 ZIP/CSV e Ideb municipal 2025 ZIP/XLSX.
+- Schemas observados: 426 colunas no Censo; 14.547 linhas e 133 colunas no Ideb municipal de anos
+  iniciais. Os hashes completos constam em `EDUCATION_SOURCES.md`.
+- O conector rejeita mudança de cabeçalho, identidade inválida, ZIP inseguro, host/redirecionamento
+  não permitido e lote vazio; marcadores de supressão não viram zero.
+- Testes unitários cobrem CP1252/CSV, identificadores, whitelist de campos, total de matrículas,
+  XLSX, rede e supressão. O teste PostgreSQL cobre rollback de release.
+- Banco descartável limpo: 25 testes aprovados. Ciclo Alembic
+  `0001 → 0006 → 0001 → 0006` aprovado e 21/21 entradas educacionais receberam decisão.
+- Leitura real para Ribeirão Preto, Campinas e São Paulo: 9.228 escolas e 45 registros de métricas.
+  Para Ribeirão Preto, a publicação descartável materializou 464 versões de escola, 4.176 fatos de
+  matrícula/etapa e 15 métricas; a segunda carga do mesmo hash não aumentou nenhuma contagem.
+- API no banco descartável: resumo municipal, escolas filtradas por rede e métricas Ideb responderam
+  200, sempre com dataset, release, período, URL e licença/status na proveniência.
+- Frontend: teste de conteúdo e typecheck aprovados; build de produção aprovado com 23 rotas,
+  incluindo `/escolas/[inepCode]` e a visão `/municipios/[ibgeCode]/educacao`.
+- Limitação ambiental: o download direto dentro do container encerrou o TLS por cadeia de
+  certificado local (`CERTIFICATE_VERIFY_FAILED`). Os mesmos artefatos oficiais, baixados e
+  conferidos fora do container, foram processados integralmente. O conector não desabilita a
+  validação TLS; a imagem de implantação precisa receber a cadeia de CA compatível.

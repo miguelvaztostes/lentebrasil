@@ -118,6 +118,9 @@ Principais rotas:
 - `GET /api/v1/dashboard/summary`
 - `GET /api/v1/exports/observations.csv?indicator=population_estimated`
 - `GET /api/v1/pipelines/status`
+- `GET /api/v1/education/schools?municipality=3543402&network=municipal`
+- `GET /api/v1/education/metrics?municipality=3543402&indicator=ideb`
+- `GET /api/v1/education/municipalities/{ibge_code}`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
 O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando
@@ -181,7 +184,9 @@ Uma VM com 2 vCPU, 4 GB de RAM e SSD é o ponto de partida recomendado; medir an
 - **Fonte caiu:** o job registra falha sem apagar o último dado validado; a API e o frontend continuam disponíveis.
 - **CNES mudou o cabeçalho:** a carga é bloqueada como `schema_drift`; revise o adaptador antes de aceitar a nova versão.
 - **Siconfi retorna vazio:** confirme exercício, 6º bimestre e homologação. Não troque automaticamente por outro período.
-- **IDEb não aparece:** é intencional nesta etapa; use somente o fluxo de importação supervisionada depois de validar o arquivo oficial.
+- **Ideb/Censo Escolar não aparecem:** confira se os releases educacionais foram publicados pelo
+  worker. Falha de certificado no container deve ser corrigida instalando a cadeia de CA do
+  ambiente; nunca desabilite a validação TLS.
 
 ## Documentação
 
@@ -190,3 +195,4 @@ Uma VM com 2 vCPU, 4 GB de RAM e SSD é o ponto de partida recomendado; medir an
 - `docs/DATA_DICTIONARY.md`: modelo, indicadores e regras de qualidade.
 - `docs/NACIONALIZACAO_BASELINE.md`: auditoria e baseline anteriores à fundação nacional.
 - `docs/CATALOGO_NACIONAL.md`: schema, estados, importação, segurança e manutenção.
+- `docs/EDUCATION_SOURCES.md`: artefatos homologados, decisões LNT, privacidade e evidências da Onda 3A.

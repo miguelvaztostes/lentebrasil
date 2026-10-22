@@ -314,11 +314,128 @@ class CatalogEntry(Base):
     indicator_refs: Mapped[list] = mapped_column(JSON, default=list)
     raw_record: Mapped[dict] = mapped_column(JSON)
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    integration_decision: Mapped[str | None] = mapped_column(String(40), index=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     catalog_import: Mapped[CatalogImport] = relationship()
     provider: Mapped[DataProvider] = relationship()
     source_resource: Mapped[SourceResource | None] = relationship()
     dataset: Mapped[Dataset | None] = relationship()
+
+
+class EducationNetwork(Base):
+    __tablename__ = "education_networks"
+
+    code: Mapped[str] = mapped_column(String(30), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+
+
+class EducationStage(Base):
+    __tablename__ = "education_stages"
+
+    code: Mapped[str] = mapped_column(String(50), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    display_order: Mapped[int] = mapped_column(Integer)
+
+
+class EducationDependency(Base):
+    __tablename__ = "education_dependencies"
+
+    code: Mapped[str] = mapped_column(String(10), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    network_code: Mapped[str] = mapped_column(ForeignKey("education_networks.code"), index=True)
+
+
+class School(Base):
+    __tablename__ = "schools"
+
+    inep_code: Mapped[str] = mapped_column(String(8), primary_key=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SchoolVersion(Base):
+    __tablename__ = "school_versions"
+    __table_args__ = (
+        UniqueConstraint("school_inep_code", "census_year", "release_id", name="uq_school_version"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    school_inep_code: Mapped[str] = mapped_column(ForeignKey("schools.inep_code"), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    census_year: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(260))
+    state: Mapped[str] = mapped_column(String(2), index=True)
+    dependency_code: Mapped[str] = mapped_column(
+        ForeignKey("education_dependencies.code"), index=True
+    )
+    operating_status: Mapped[str] = mapped_column(String(40), index=True)
+    location_type: Mapped[str | None] = mapped_column(String(30))
+    infrastructure: Mapped[dict] = mapped_column(JSON, default=dict)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"))
+    release_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("publication_releases.id"), index=True)
+
+
+class EducationEnrollment(Base):
+    __tablename__ = "education_enrollments"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_inep_code",
+            "census_year",
+            "stage_code",
+            "release_id",
+            name="uq_education_enrollment_release",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    school_inep_code: Mapped[str] = mapped_column(ForeignKey("schools.inep_code"), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    census_year: Mapped[int] = mapped_column(Integer, index=True)
+    stage_code: Mapped[str] = mapped_column(ForeignKey("education_stages.code"), index=True)
+    dependency_code: Mapped[str] = mapped_column(
+        ForeignKey("education_dependencies.code"), index=True
+    )
+    enrollment_count: Mapped[int | None] = mapped_column(Integer)
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"))
+    release_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("publication_releases.id"), index=True)
+
+
+class EducationMetric(Base):
+    __tablename__ = "education_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "municipality_ibge_code",
+            "reference_year",
+            "metric_code",
+            "network_code",
+            "stage_code",
+            "release_id",
+            name="uq_education_metric_release",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    reference_year: Mapped[int] = mapped_column(Integer, index=True)
+    metric_code: Mapped[str] = mapped_column(String(80), index=True)
+    network_code: Mapped[str] = mapped_column(ForeignKey("education_networks.code"), index=True)
+    stage_code: Mapped[str] = mapped_column(ForeignKey("education_stages.code"), index=True)
+    value: Mapped[Decimal | None] = mapped_column(Numeric(16, 6))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"))
+    release_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("publication_releases.id"), index=True)
 
 
 class SourceSnapshot(Base):

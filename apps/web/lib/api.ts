@@ -91,6 +91,9 @@ export type SearchItem = {
   source_status: string;
   connector_status: string;
   publication_status: string;
+  integration_decision: string | null;
+  decision_reason: string | null;
+  decided_at: string | null;
   reference_period: string | null;
   collected_at: string | null;
 };
@@ -113,6 +116,49 @@ export type SearchResponse = {
     freshness: Facet[];
   };
   summary: { candidate_sources: number; published_datasets: number };
+};
+
+export type EducationSource = {
+  dataset: string;
+  provider: string | null;
+  url: string | null;
+  license: string | null;
+  release: string;
+  reference_start: string | null;
+  reference_end: string | null;
+  published_at: string | null;
+  provenance: Record<string, unknown>;
+};
+
+export type EducationMetric = {
+  year: number;
+  indicator: string;
+  network: string;
+  stage: string;
+  value: string | number | null;
+  availability_status: string;
+};
+
+export type EducationMunicipality = {
+  municipality: Municipality;
+  school_count: number;
+  enrollment_total: number | null;
+  metrics: EducationMetric[];
+  sources: { schools: EducationSource | null; metrics: EducationSource | null };
+};
+
+export type SchoolDetailResponse = {
+  inep_code: string;
+  name: string;
+  municipality_ibge_code: string;
+  state: string;
+  year: number;
+  dependency_code: string;
+  operating_status: string;
+  location_type: string | null;
+  infrastructure: Record<string, boolean | null>;
+  enrollments: Array<{ stage: string; value: number | null; availability_status: string }>;
+  source: EducationSource;
 };
 
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {

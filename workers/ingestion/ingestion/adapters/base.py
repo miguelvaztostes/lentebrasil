@@ -131,9 +131,7 @@ class SourceAdapter(ABC):
     def validate(self, records: list[ObservationRecord]) -> None:
         """Raise SourceValidationError when publishing must be blocked."""
 
-    def after_validate(
-        self, payload: FetchedPayload, records: list[ObservationRecord]
-    ) -> None:
+    def after_validate(self, payload: FetchedPayload, records: list[ObservationRecord]) -> None:
         """Persist source-specific checkpoint metadata after validation succeeds."""
         return
 
@@ -243,9 +241,7 @@ class SourceAdapter(ABC):
     ) -> None:
         retrieved_at = snapshot.fetched_at
         for record in records:
-            indicator = db.scalar(
-                select(Indicator).where(Indicator.code == record.indicator_code)
-            )
+            indicator = db.scalar(select(Indicator).where(Indicator.code == record.indicator_code))
             if indicator is None:
                 raise SourceValidationError(
                     f"Indicador não cadastrado: {record.indicator_code}",
@@ -298,6 +294,18 @@ class SourceAdapter(ABC):
     def _create_snapshot(
         self, db: Session, dataset: Dataset, payload: FetchedPayload
     ) -> SourceSnapshot:
+        existing = db.scalar(
+            select(SourceSnapshot)
+            .where(
+                SourceSnapshot.dataset_id == dataset.id,
+                SourceSnapshot.sha256 == payload.sha256,
+            )
+            .limit(1)
+        )
+        if existing is not None:
+            if payload.file_path is not None and "_stage" in payload.file_path.parts:
+                payload.file_path.unlink(missing_ok=True)
+            return existing
         storage_path = None
         if payload.persist_raw:
             directory = self.raw_data_dir / self.dataset_code
@@ -305,9 +313,7 @@ class SourceAdapter(ABC):
             suffix = {"json": "json", "csv.zip": "zip"}.get(
                 payload.original_format, payload.original_format.replace(".", "_")
             )
-            filename = (
-                f"{payload.fetched_at:%Y%m%dT%H%M%SZ}-{payload.sha256[:16]}.{suffix}"
-            )
+            filename = f"{payload.fetched_at:%Y%m%dT%H%M%SZ}-{payload.sha256[:16]}.{suffix}"
             path = directory / filename
             if not path.exists():
                 if payload.file_path is not None:
@@ -315,6 +321,8 @@ class SourceAdapter(ABC):
                 else:
                     path.write_bytes(payload.content or b"")
             storage_path = str(path)
+            if payload.file_path is not None and "_stage" in payload.file_path.parts:
+                payload.file_path.unlink(missing_ok=True)
         headers = dict(payload.response_headers)
         if payload.resource_version:
             headers["x-lente-resource-version"] = payload.resource_version
@@ -354,8 +362,7 @@ class SourceAdapter(ABC):
         return {
             key: value
             for key, value in response.headers.items()
-            if key.lower()
-            in {"etag", "last-modified", "content-type", "content-length"}
+            if key.lower() in {"etag", "last-modified", "content-type", "content-length"}
         }
 
     @staticmethod
