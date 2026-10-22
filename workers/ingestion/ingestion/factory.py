@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,14 @@ from ingestion.adapters.federal_education import (
 )
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
-from lente_api.models import GeoCodeMapping, GeoUnit, Municipality
+from ingestion.adapters.transparency import (
+    PncpContractAdapter,
+    PncpProcurementAdapter,
+    SiconfiStatementAdapter,
+    TceSpRevenueAdapter,
+    normalize_name,
+)
+from lente_api.models import Agency, GeoCodeMapping, GeoUnit, Municipality
 
 LEGACY_MUNICIPALITY = "3543402"
 
@@ -55,9 +63,82 @@ def build_adapter(
     resource_version: str | None = None,
     batch_size: int = 50,
     max_requests: int = 250,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+    modalities: list[int] | None = None,
+    entity_identifiers: list[str] | None = None,
+    update_mode: bool = True,
 ) -> Any:
     municipalities = select_municipalities(db, municipality_codes=municipality_codes, uf=uf)
     codes = [item.ibge_code for item in municipalities]
+    today = datetime.now(UTC).date()
+    parsed_start = date.fromisoformat(start_date) if isinstance(start_date, str) else start_date
+    parsed_end = date.fromisoformat(end_date) if isinstance(end_date, str) else end_date
+    window_end = parsed_end or today
+    window_start = parsed_start or (window_end - timedelta(days=1))
+    if source == "pncp":
+        return PncpProcurementAdapter(
+            raw_data_dir=raw_data_dir,
+            selected_municipalities=set(codes),
+            start_date=window_start,
+            end_date=window_end,
+            modalities=modalities or range(1, 20),
+            max_requests=max_requests,
+            update_mode=update_mode,
+        )
+    if source == "pncp_contracts":
+        identifiers = entity_identifiers or list(
+            db.scalars(
+                select(Agency.entity_identifier).where(
+                    Agency.source_system == "pncp",
+                    Agency.municipality_ibge_code.in_(codes),
+                    Agency.entity_identifier.is_not(None),
+                )
+            )
+        )
+        return PncpContractAdapter(
+            raw_data_dir=raw_data_dir,
+            selected_municipalities=set(codes),
+            start_date=window_start,
+            end_date=window_end,
+            entity_identifiers=identifiers,
+            max_requests=max_requests,
+            update_mode=update_mode,
+        )
+    if source == "tcesp_revenues":
+        if any(item.state != "SP" for item in municipalities):
+            raise ValueError("TCE-SP só pode ser aplicado a municípios paulistas")
+        first = start_year if start_year is not None else 2025
+        last = end_year if end_year is not None else first
+        return TceSpRevenueAdapter(
+            raw_data_dir=raw_data_dir,
+            municipality_names={
+                normalize_name(item.name): item.ibge_code for item in municipalities
+            },
+            years=range(first, last + 1),
+        )
+    if source in {"siconfi_rgf", "siconfi_dca"}:
+        statement_type = source.removeprefix("siconfi_")
+        default_year = 2025 if statement_type == "rgf" else 2024
+        first = start_year if start_year is not None else default_year
+        last = end_year if end_year is not None else first
+        effective_annexes = (
+            None if statement_type == "dca" and annexes == ["RREO-Anexo 01"] else annexes
+        )
+        selected_annexes = effective_annexes or (
+            ["RGF-Anexo 01"] if statement_type == "rgf" else ["DCA-Anexo I-AB"]
+        )
+        if len(selected_annexes) != 1:
+            raise ValueError("Cada job fiscal Siconfi deve selecionar exatamente um anexo")
+        return SiconfiStatementAdapter(
+            raw_data_dir=raw_data_dir,
+            statement_type=statement_type,
+            municipality_codes=codes,
+            years=range(first, last + 1),
+            periods=periods or [3],
+            annex=selected_annexes[0],
+            max_requests=max_requests,
+        )
     if source == "ibge":
         period_range = None
         if start_year is not None or end_year is not None:
@@ -126,7 +207,10 @@ def build_adapter(
             raw_data_dir=raw_data_dir,
             selected_municipalities=set(codes),
             municipality_names={
-                (item.state, normalize_fnde_municipality_name(item.name)): item.ibge_code
+                (
+                    item.state,
+                    normalize_fnde_municipality_name(item.name),
+                ): item.ibge_code
                 for item in municipalities
             },
         )

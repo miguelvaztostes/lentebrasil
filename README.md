@@ -20,6 +20,7 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   cobertura e publicação.
 - Coleta real da população estimada pelo IBGE/SIDRA.
 - Coleta real do RREO/Siconfi, preservando receita, empenho, liquidação e pagamento.
+- Contratações e contratos PNCP com paginação, versões e checkpoints; RGF/DCA do Siconfi e receitas TCE-SP/Audesp por rubrica, sem consolidação indevida entre fontes.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
   preservando supressões e distinguindo previsão de transferência de execução financeira.
@@ -64,6 +65,10 @@ docker compose run --rm ingestion python -m ingestion.cli ingest --source siconf
 docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes --dry-run
 docker compose run --rm ingestion python -m ingestion.cli ingest --source saeb --dry-run
 docker compose run --rm ingestion python -m ingestion.cli ingest --source fnde_pnae --dry-run
+docker compose run --rm ingestion python -m ingestion.cli ingest --source pncp --dry-run --municipalities 3543402 --start-date 2026-10-01 --end-date 2026-10-22 --modalities 8 --publication-mode
+docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi_rgf --dry-run --municipalities 3543402 --start-year 2025 --periods 3 --annexes "RGF-Anexo 01"
+docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi_dca --dry-run --municipalities 3543402 --start-year 2024 --annexes "DCA-Anexo I-AB"
+docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_revenues --dry-run --municipalities 3543402 --start-year 2025
 ```
 
 Coletar e persistir:
@@ -126,6 +131,12 @@ Principais rotas:
 - `GET /api/v1/education/metrics?municipality=3543402&dataset=inep_saeb_municipal`
 - `GET /api/v1/education/metrics?municipality=3543402&dataset=fnde_pnae_municipal`
 - `GET /api/v1/education/municipalities/{ibge_code}`
+- `GET /api/v1/transparency/fiscal-statements?municipality=3543402&year=2025`
+- `GET /api/v1/transparency/procurements?municipality=3543402&year=2026`
+- `GET /api/v1/transparency/contracts?municipality=3543402`
+- `GET /api/v1/transparency/transfers?municipality=3543402`
+- `GET /api/v1/transparency/exports/fiscal-statements.csv?municipality=3543402`
+- `GET /api/v1/transparency/exports/procurements.csv?municipality=3543402`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
 O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando

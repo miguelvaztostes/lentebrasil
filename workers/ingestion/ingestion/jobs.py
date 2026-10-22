@@ -32,6 +32,11 @@ def schedule_job(
         "ibge": "ibge_population",
         "siconfi": "siconfi_rreo",
         "cnes": "cnes_establishments",
+        "pncp": "pncp_procurements",
+        "pncp_contracts": "pncp_contracts",
+        "tcesp_revenues": "tcesp_revenues",
+        "siconfi_rgf": "siconfi_rgf",
+        "siconfi_dca": "siconfi_dca",
     }.get(source)
     if dataset_code is None:
         raise ValueError(f"Fonte desconhecida: {source}")
@@ -126,6 +131,7 @@ def execute_job(db: Session, job: IngestionJob, *, raw_data_dir: Path) -> dict[s
             "items_received": summary.items_received,
             "items_accepted": summary.items_accepted,
             "finished_at": now.isoformat(),
+            **adapter.checkpoint_metadata(),
         }
         job.finished_at = now
         job.last_success_at = now

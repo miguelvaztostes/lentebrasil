@@ -438,6 +438,204 @@ class EducationMetric(Base):
     release_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("publication_releases.id"), index=True)
 
 
+class Agency(Base):
+    __tablename__ = "agencies"
+    __table_args__ = (UniqueConstraint("source_system", "source_key", name="uq_agency_source_key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(160))
+    name: Mapped[str] = mapped_column(String(320))
+    entity_identifier: Mapped[str | None] = mapped_column(String(32), index=True)
+    unit_code: Mapped[str | None] = mapped_column(String(80))
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    state: Mapped[str | None] = mapped_column(String(2), index=True)
+    power: Mapped[str | None] = mapped_column(String(40))
+    sphere: Mapped[str | None] = mapped_column(String(40))
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", name="uq_supplier_source_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(160))
+    name: Mapped[str | None] = mapped_column(String(320))
+    identifier_type: Mapped[str] = mapped_column(String(20))
+    identifier: Mapped[str | None] = mapped_column(String(32), index=True)
+    public_identity: Mapped[bool] = mapped_column(Boolean, default=False)
+    privacy_review: Mapped[str] = mapped_column(String(80), default="pending")
+
+
+class BudgetAccount(Base):
+    __tablename__ = "budget_accounts"
+    __table_args__ = (
+        UniqueConstraint("source_system", "account_code", name="uq_budget_account_source_code"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    account_code: Mapped[str] = mapped_column(String(120))
+    name: Mapped[str] = mapped_column(Text)
+    account_type: Mapped[str | None] = mapped_column(String(60), index=True)
+    hierarchy: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class FiscalStatement(Base):
+    __tablename__ = "fiscal_statements"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_fiscal_statement_revision"
+        ),
+        Index(
+            "ix_fiscal_statement_municipality_year_source",
+            "municipality_ibge_code",
+            "reference_year",
+            "source_system",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    agency_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agencies.id"), index=True)
+    budget_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("budget_accounts.id"), index=True
+    )
+    statement_type: Mapped[str] = mapped_column(String(60), index=True)
+    reference_year: Mapped[int] = mapped_column(Integer, index=True)
+    reference_period: Mapped[int | None] = mapped_column(Integer, index=True)
+    periodicity: Mapped[str | None] = mapped_column(String(30))
+    annex: Mapped[str | None] = mapped_column(String(100))
+    power: Mapped[str | None] = mapped_column(String(20))
+    column_code: Mapped[str | None] = mapped_column(String(120))
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    source_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class Procurement(Base):
+    __tablename__ = "procurements"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", "revision", name="uq_procurement_revision"),
+        Index(
+            "ix_procurement_municipality_year_status",
+            "municipality_ibge_code",
+            "procurement_year",
+            "status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(180), index=True)
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    agency_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agencies.id"), index=True)
+    procurement_year: Mapped[int] = mapped_column(Integer, index=True)
+    procurement_number: Mapped[str | None] = mapped_column(String(160))
+    process_number: Mapped[str | None] = mapped_column(String(200))
+    object_description: Mapped[str] = mapped_column(Text)
+    modality_code: Mapped[str | None] = mapped_column(String(40), index=True)
+    modality_name: Mapped[str | None] = mapped_column(String(160), index=True)
+    status: Mapped[str | None] = mapped_column(String(160), index=True)
+    sector: Mapped[str | None] = mapped_column(String(100), index=True)
+    estimated_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    homologated_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    proposal_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    proposal_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class ProcurementItem(Base):
+    __tablename__ = "procurement_items"
+    __table_args__ = (
+        UniqueConstraint("procurement_id", "item_number", name="uq_procurement_item"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    procurement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("procurements.id"), index=True)
+    item_number: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(Text)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    unit: Mapped[str | None] = mapped_column(String(100))
+    estimated_unit_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    estimated_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+
+
+class Contract(Base):
+    __tablename__ = "contracts"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", "revision", name="uq_contract_revision"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(180), index=True)
+    procurement_source_key: Mapped[str | None] = mapped_column(String(180), index=True)
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    agency_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agencies.id"), index=True)
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("suppliers.id"), index=True)
+    contract_year: Mapped[int] = mapped_column(Integer, index=True)
+    contract_number: Mapped[str | None] = mapped_column(String(160))
+    object_description: Mapped[str] = mapped_column(Text)
+    status: Mapped[str | None] = mapped_column(String(100), index=True)
+    initial_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    global_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    signed_at: Mapped[date | None] = mapped_column(Date)
+    validity_start: Mapped[date | None] = mapped_column(Date)
+    validity_end: Mapped[date | None] = mapped_column(Date)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class Transfer(Base):
+    __tablename__ = "transfers"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", "revision", name="uq_transfer_revision"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(180), index=True)
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    agency_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agencies.id"), index=True)
+    program_code: Mapped[str | None] = mapped_column(String(100), index=True)
+    program_name: Mapped[str | None] = mapped_column(String(240))
+    reference_year: Mapped[int] = mapped_column(Integer, index=True)
+    transfer_type: Mapped[str] = mapped_column(String(80), index=True)
+    planned_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    paid_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    source_document_url: Mapped[str] = mapped_column(Text)
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class SourceSnapshot(Base):
     __tablename__ = "source_snapshots"
 

@@ -27,6 +27,23 @@
 | `dataset_coverage` | geografia, escopo, período e status | Cobertura aferida; nunca inferida pela presença do dataset. |
 | `publication_releases` | chave, período, estado e proveniência | Unidade explícita de validação/publicação. |
 
+## Transparência e contratações
+
+| Tabela | Grão e regra publicável |
+|---|---|
+| `agencies` | Órgão/unidade conforme a fonte, com município anulável para não atribuir contratação intermunicipal por inferência. |
+| `suppliers` | Identidade separada e bloqueada por padrão (`public_identity=false`, `privacy_review=pending`); CPF e CNPJ de MEI não são publicados sem revisão. |
+| `budget_accounts` | Conta/rubrica por sistema de origem; hierarquia original em JSON. |
+| `fiscal_statements` | Fonte/chave/versão, município, demonstrativo, exercício, período, anexo, poder, coluna e conta. `amount` é `NUMERIC(24,6)` anulável. |
+| `procurements` | Contratação PNCP/versão com órgão, município informado, modalidade, situação, valores e datas. |
+| `procurement_items` | Item da contratação; estrutura criada para expansão, sem publicação simulada. |
+| `contracts` | Contrato/versão com vínculo opcional à contratação; fornecedor permanece anulável. |
+| `transfers` | Programa/tipo/exercício/versão; previsão PNAE não é convertida em pagamento fiscal. |
+
+Chaves lógicas usam `(source_system, source_key, revision)`. Repetição idêntica é idempotente;
+republicação cria revisão e alerta `source_republication`. A API seleciona a última revisão e
+devolve URL, hash, coleta, licença/status e documento de origem.
+
 ## Educação
 
 | Tabela | Grão | Conteúdo publicável |

@@ -168,6 +168,46 @@ export type SchoolDetailResponse = {
   source: EducationSource;
 };
 
+export type TransparencySource = {
+  dataset: string;
+  provider: string;
+  license: string | null;
+  document_url: string;
+  retrieved_from: string;
+  retrieved_at: string;
+  published_at: string | null;
+  sha256: string;
+};
+
+export type Procurement = {
+  source_key: string;
+  year: number;
+  object: string;
+  agency: string;
+  modality: string | null;
+  status: string | null;
+  estimated_amount: string | null;
+  homologated_amount: string | null;
+  published_at: string | null;
+  source: TransparencySource;
+};
+
+export type FiscalStatement = {
+  source_key: string;
+  source_system: string;
+  statement_type: string;
+  year: number;
+  period: number | null;
+  annex: string | null;
+  column: string | null;
+  account: { code: string; name: string };
+  amount: string | null;
+  availability_status: string;
+  source: TransparencySource;
+};
+
+export type Paged<T> = { items: T[]; count: number; limit: number; offset: number; notice?: string; methodology?: string };
+
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE}/v1${path}`, {
     headers: { Accept: "application/json" },

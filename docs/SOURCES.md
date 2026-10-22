@@ -27,6 +27,12 @@ Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa
 | IBGE SIDRA, tabela 6579, variável 9324 | `confirmed` | `https://apisidra.ibge.gov.br/values/t/6579/n6/3543402/v/9324/p/last%2010?formato=json` | JSON; uso com atribuição ao IBGE, termos específicos a revisar | HTTP 200; em 09/10/2026 retornou, entre outros, população residente estimada de `734538` pessoas para 2026. Primeira integração vertical. |
 | Tesouro Nacional / Siconfi, RREO Anexo 01 | `confirmed` | `https://apidatalake.tesouro.gov.br/ords/cdwhprd/siconfi/tt/rreo` | JSON; Apache 2.0; limite publicado de 1 requisição/s | Consulta 2025, 6º bimestre, ente `3543402` retornou 513 registros. Integração fiscal usa rubricas e colunas explicitamente selecionadas, sem somar fases. |
 | Tesouro Nacional / documentação | `confirmed` | `https://apidatalake.tesouro.gov.br/docs/siconfi/` e `https://apidatalake.tesouro.gov.br/docs/siconfi.yaml` | OpenAPI/Swagger YAML; Apache 2.0 | Contrato e parâmetros obrigatórios confirmados. |
+| Tesouro Nacional / Siconfi RGF e DCA | `confirmed` | rotas oficiais `rgf` e `dca` documentadas no OpenAPI | JSON; Apache 2.0; 1 requisição/s | Em 22/10/2026, RGF 2025/3/Anexo 01 de Ribeirão Preto retornou 165 linhas e DCA 2024/Anexo I-AB retornou 172. Contas, colunas, poder e períodos são preservados. |
+| PNCP / Consulta pública | `confirmed` | `https://pncp.gov.br/pncp-consulta/v3/api-docs` | JSON/OpenAPI; consulta pública sem token | Em 22/10/2026, modalidade 8, publicação de 01–22/10 e IBGE `3543402` retornou 58 registros em duas páginas. Conector usa paginação, chave PNCP, atualização global e documento de origem. |
+| TCE-SP / Receitas 2025 | `confirmed` | `https://transparencia.tce.sp.gov.br/sites/default/files/conjunto-dados/receitas-2025.zip` | ZIP/CSV CP1252; licença de reutilização não declarada | 35.462.775 bytes, SHA-256 `16df083d2088127108957a028f6c824265813c74542f528108526b44a392b84b`. Três linhas foram reconciliadas por ID/rubrica/valor. |
+| TCE-SP / Licitações 2025-01 | `metadata_only` | arquivo mensal listado na página oficial | ZIP/CSV | Artefato e três linhas foram inspecionados; não ingerido por conter participantes/CNPJ e sobrepor PNCP sem conciliação homologada. |
+| TCE-SP / Despesas 2025 | `pending_review` | arquivo anual listado na página oficial | ZIP/CSV de 1,96 GB | Adiado por tamanho e necessidade de reconciliar fases sem dupla contagem. |
+| CGU / Portal da Transparência | `restricted` | `https://api.portaldatransparencia.gov.br/` | API com token gov.br | Nenhum token foi fornecido. Conector não ativado; nenhum segredo armazenado. |
 | INEP / Censo Escolar 2024 | `confirmed` | `https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip` | ZIP/CSV oficial; termos/LGPD do Inep | HTTP 200; artefato, encoding, delimitador, schema e dicionário inspecionados em 21/10/2026. Conector usa somente campos escolares agregados publicáveis. |
 | INEP / IDEB 2005–2025 | `confirmed` | `https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip` | ZIP/XLSX e notas oficiais | HTTP 200; pacote municipal 2025 e cabeçalhos da planilha validados em 21/10/2026. Supressões são preservadas. |
 | INEP / Saeb 2023 | `confirmed` | `https://download.inep.gov.br/saeb/resultados/planilha_de_resultados_2023.rar` | RAR/XLSB oficial; licença específica a confirmar | Artefato de 8.413.247 bytes e planilha municipal com 69.053 linhas validados em 21/10/2026. O conector publica somente médias agregadas e preserva supressões. |
@@ -51,6 +57,9 @@ Uma fonte só muda para `confirmed` quando a URL canônica responde e o conteúd
 - `inep_ideb_municipal`: Ideb e componentes municipais/rede, anos iniciais de 2025.
 - `inep_saeb_municipal`: médias agregadas municipais do Saeb 2023, por etapa, disciplina e rede.
 - `fnde_pnae_municipal`: alunos considerados e valor previsto do PNAE 2024, por ação e prefeitura.
+- `pncp_procurements` e `pncp_contracts`: registros versionados; fornecedores suprimidos até revisão LGPD.
+- `siconfi_rgf` e `siconfi_dca`: fatos por linha, conta e coluna original, sem soma automática.
+- `tcesp_revenues`: receita mensal por rubrica; não substitui nem é somada ao Siconfi.
 
 O catálogo nacional mostrado no portal preserva as 165 URLs recebidas no inventário como
 metadados candidatos. A publicação do catálogo não altera o estado de verificação dessas URLs e

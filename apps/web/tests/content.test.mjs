@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("public disclaimer and empty-data language remain visible", async () => {
-  const [footer, dashboard, indicator, search, home, education, school] = await Promise.all([
+  const [footer, dashboard, indicator, search, home, education, school, transparency] = await Promise.all([
     readFile(new URL("../components/Footer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/Dashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/IndicatorDetail.tsx", import.meta.url), "utf8"),
@@ -11,6 +11,7 @@ test("public disclaimer and empty-data language remain visible", async () => {
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/EducationDashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/SchoolDetail.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/TransparencyDashboard.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(footer, /Observatório cívico independente/);
   assert.match(dashboard, /não há observações validadas/);
@@ -27,4 +28,7 @@ test("public disclaimer and empty-data language remain visible", async () => {
   assert.match(education, /PNAE 2024/);
   assert.match(education, /Não representa pagamento realizado/);
   assert.match(school, /não armazena endereço, telefone, CNPJ nem dados individuais/);
+  assert.match(transparency, /Não há classificação automática de irregularidade/);
+  assert.match(transparency, /Ausência não é exibida como zero/);
+  assert.match(transparency, /exports\/procurements\.csv/);
 });

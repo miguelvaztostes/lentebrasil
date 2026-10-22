@@ -26,6 +26,12 @@ from lente_api.models import (
     Source,
     SourceResource,
 )
+from lente_api.transparency_decisions import (
+    DECIDED_AT as TRANSPARENCY_DECIDED_AT,
+)
+from lente_api.transparency_decisions import (
+    TRANSPARENCY_DECISIONS,
+)
 
 REFERENCE_RECORDS = 165
 REFERENCE_AREAS = 16
@@ -38,6 +44,10 @@ HOMOLOGATED_DATASET_LINKS = {
     "LNT-0009": "inep_ideb_municipal",
     "LNT-0010": "inep_saeb_municipal",
     "LNT-0081": "fnde_pnae_municipal",
+    "LNT-0038": "pncp_procurements",
+    "LNT-0094": "siconfi_rgf",
+    "LNT-0095": "siconfi_dca",
+    "LNT-0099": "tcesp_revenues",
 }
 ALLOWED_FORMATS = {
     "api",
@@ -918,14 +928,16 @@ def _import_record(
         entry.indicator_refs = indicator_refs
         entry.raw_record = record
         entry.imported_at = imported_at
-    decision = EDUCATION_DECISIONS.get(external_id)
+    decision = EDUCATION_DECISIONS.get(external_id) or TRANSPARENCY_DECISIONS.get(external_id)
     if decision:
         entry.integration_decision, entry.decision_reason = decision
-        entry.decided_at = DECIDED_AT
+        entry.decided_at = (
+            DECIDED_AT if external_id in EDUCATION_DECISIONS else TRANSPARENCY_DECIDED_AT
+        )
         if decision[0] == "integrate" and resource is not None:
             resource.source_status = "verified"
             resource.connector_status = "implemented"
-            resource.last_verified_at = DECIDED_AT
+            resource.last_verified_at = entry.decided_at
 
 
 def _summary(

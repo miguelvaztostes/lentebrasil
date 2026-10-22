@@ -137,6 +137,10 @@ class SourceAdapter(ABC):
         """Persist source-specific checkpoint metadata after validation succeeds."""
         return
 
+    def checkpoint_metadata(self) -> dict[str, Any]:
+        """Return source-specific progress that can safely resume a scheduled job."""
+        return {}
+
     def health(self) -> dict[str, Any]:
         try:
             evidence = self.discover()

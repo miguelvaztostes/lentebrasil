@@ -34,6 +34,11 @@ def _parameters(
     resource_version: str | None,
     batch_size: int,
     max_requests: int,
+    start_date: str | None,
+    end_date: str | None,
+    modalities: str,
+    entity_identifiers: str,
+    publication_mode: bool,
 ) -> dict:
     return {
         "municipality_codes": _split(municipalities),
@@ -45,6 +50,11 @@ def _parameters(
         "resource_version": resource_version,
         "batch_size": batch_size,
         "max_requests": max_requests,
+        "start_date": start_date,
+        "end_date": end_date,
+        "modalities": [int(item) for item in (_split(modalities) or [])] or None,
+        "entity_identifiers": _split(entity_identifiers),
+        "update_mode": not publication_mode,
     }
 
 
@@ -59,7 +69,11 @@ def geo_sync() -> None:
 @app.command()
 def ingest(
     source: str = typer.Option(
-        ..., help="ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae ou all"
+        ...,
+        help=(
+            "ibge, siconfi, cnes, educação, pncp, pncp_contracts, tcesp_revenues, "
+            "siconfi_rgf, siconfi_dca ou all"
+        ),
     ),
     dry_run: bool = typer.Option(False, help="Coleta e valida sem gravar no banco"),
     municipalities: str | None = typer.Option(
@@ -74,6 +88,15 @@ def ingest(
     resource_version: str | None = None,
     batch_size: int = 50,
     max_requests: int = 250,
+    start_date: str | None = typer.Option(None, help="Data ISO inicial para PNCP"),
+    end_date: str | None = typer.Option(
+        None, help="Data ISO final para PNCP (janela máxima: 31 dias)"
+    ),
+    modalities: str = typer.Option("", help="Códigos de modalidade PNCP separados por vírgula"),
+    entity_identifiers: str = typer.Option("", help="CNPJs de órgãos PNCP separados por vírgula"),
+    publication_mode: bool = typer.Option(
+        False, help="Usa data de publicação em vez de atualização"
+    ),
 ) -> None:
     selected = list(ADAPTERS) if source == "all" else [source]
     unknown = [item for item in selected if item not in ADAPTERS]
@@ -89,6 +112,11 @@ def ingest(
         resource_version=resource_version,
         batch_size=batch_size,
         max_requests=max_requests,
+        start_date=start_date,
+        end_date=end_date,
+        modalities=modalities,
+        entity_identifiers=entity_identifiers,
+        publication_mode=publication_mode,
     )
     results = []
     failures = 0
@@ -131,6 +159,11 @@ def schedule(
     resource_version: str | None = None,
     batch_size: int = 50,
     max_requests: int = 250,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    modalities: str = "",
+    entity_identifiers: str = "",
+    publication_mode: bool = False,
     recurring_seconds: int | None = typer.Option(None, min=3600),
     dry_run: bool = False,
 ) -> None:
@@ -144,6 +177,11 @@ def schedule(
         resource_version=resource_version,
         batch_size=batch_size,
         max_requests=max_requests,
+        start_date=start_date,
+        end_date=end_date,
+        modalities=modalities,
+        entity_identifiers=entity_identifiers,
+        publication_mode=publication_mode,
     )
     parameters.update({"recurring_seconds": recurring_seconds, "dry_run": dry_run})
     with SessionLocal() as db:
@@ -191,7 +229,8 @@ def work_once() -> None:
 @app.command()
 def health(
     source: str = typer.Option(
-        "all", help="ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae ou all"
+        "all",
+        help="Fonte registrada ou all; fontes fiscais podem exigir parâmetros explícitos",
     ),
     municipalities: str | None = None,
 ) -> None:

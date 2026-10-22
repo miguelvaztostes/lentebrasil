@@ -227,3 +227,29 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
 - Limitação ambiental preservada: PNAE respondeu no container, mas o host do INEP falhou por
   cadeia de certificado local. O RAR verificado no host foi processado pelo mesmo parser no
   container, com TLS obrigatório no conector.
+
+## Etapa 3B — transparência e contratações — 22/10/2026
+
+- Auditoria real: PNCP modalidade 8/Ribeirão retornou 58 contratações em duas páginas; RGF
+  2025/3 retornou 165 linhas; DCA 2024 retornou 172; TCE-SP selecionou 3.286 linhas de receita.
+- Três amostras TCE-SP foram reconciliadas por ID, rubrica e valor. O ZIP de 35.462.775 bytes
+  reproduziu SHA-256 `16df083d2088127108957a028f6c824265813c74542f528108526b44a392b84b`.
+- Carga descartável PostgreSQL: 58 contratações, 14 contratos (CNPJ municipal homologado), 165
+  linhas RGF, 172 DCA e 3.286 receitas. Reexecutar PNCP manteve 58 fatos; snapshots preservaram
+  respostas novas da fonte sem duplicar a entidade lógica.
+- API demonstrada com HTTP 200 e paginação SQL: contratações `58`, contratos `14`, RGF `165`,
+  receitas TCE-SP `3286`, transferências `0` (indisponível, não zero). CSV controlado respondeu
+  com limite e proveniência.
+- Alembic em PostgreSQL 16 limpo: `0001 → 0008 → 0007 → 0008` aprovado. O banco local existente
+  foi atualizado de `0006 → 0008`, mantendo catálogo e dados anteriores.
+- Backend: 31 testes aprovados no PostgreSQL limpo. Unidade cobre paginação/checkpoint PNCP,
+  `Decimal`, schema, três amostras e ausência; integração cobre idempotência/revisões existentes.
+- Frontend: teste de conteúdo, TypeScript e build Next.js 16.4.2 de produção aprovados; 23 rotas,
+  incluindo `/transparencia` e a visão financeira municipal. A atualização corretiva de 16.4.0
+  para 16.4.2 removeu o alerta de segurança da versão e o `npm audit --omit=dev` terminou sem
+  vulnerabilidades de produção.
+- Docker: imagens de API, worker e web construídas; serviços locais ficaram saudáveis após
+  recriação. Ruff global e verificação de formatação dos arquivos alterados foram aprovados.
+- CGU não foi executado porque nenhum token autorizado foi fornecido. Despesas TCE-SP (1,96 GB),
+  atas/PCA PNCP e portais municipais continuam sem aceite; as razões constam em
+  `TRANSPARENCY_SOURCES.md`.

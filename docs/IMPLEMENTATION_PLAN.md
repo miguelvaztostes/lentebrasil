@@ -97,6 +97,14 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 
 ## Ordem de execução
 
+## Etapa 3B — transparência e contratações
+
+- PNCP: janela máxima de 31 dias, paginação por modalidade/município para contratações e por CNPJ de órgão homologado para contratos; checkpoint guarda janela, atualização, chave e páginas.
+- Siconfi: RREO existente preservado; RGF e DCA adicionados como linhas versionadas, respeitando 1 requisição/s e sem misturar fases, períodos ou fontes.
+- TCE-SP: receitas 2025 são processadas em streaming de ZIP/CSV e por rubrica. Despesas e licitações permanecem fora da publicação até conciliação segura.
+- CGU permanece bloqueado sem token autorizado. FNDE/PNAE continua educacional e não vira transferência paga. Portais municipais sem exportação permanecem manuais.
+- API e dashboard são consultivos; não produzem acusação ou escore de irregularidade.
+
 ```text
 docs → migração/catálogo → API → adaptador IBGE → UI → Siconfi/CNES
      → testes → observabilidade → backup/restore → empacotamento
