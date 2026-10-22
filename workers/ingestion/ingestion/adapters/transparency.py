@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -20,6 +21,14 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 from dateutil.parser import parse as parse_datetime
+from lente_api.models import (
+    Agency,
+    BudgetAccount,
+    Contract,
+    FiscalStatement,
+    Procurement,
+    SourceSnapshot,
+)
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -29,14 +38,6 @@ from ingestion.adapters.base import (
     SourceAdapter,
     SourceValidationError,
 )
-from lente_api.models import (
-    Agency,
-    BudgetAccount,
-    Contract,
-    FiscalStatement,
-    Procurement,
-    SourceSnapshot,
-)
 
 PNCP_OPENAPI_URL = "https://pncp.gov.br/pncp-consulta/v3/api-docs"
 PNCP_BASE_URL = "https://pncp.gov.br/api/consulta"
@@ -44,6 +45,7 @@ PNCP_MODALITIES_URL = "https://pncp.gov.br/api/pncp/v1/modalidades?statusAtivo=t
 SICONFI_OPENAPI_URL = "https://apidatalake.tesouro.gov.br/docs/siconfi.yaml"
 SICONFI_BASE_URL = "https://apidatalake.tesouro.gov.br/ords/cdwhprd/siconfi/tt"
 TCESP_DATASETS_URL = "https://transparencia.tce.sp.gov.br/conjunto-de-dados"
+TCESP_API_URL = "https://transparencia.tce.sp.gov.br/api/json"
 TCESP_REVENUE_URL = (
     "https://transparencia.tce.sp.gov.br/sites/default/files/conjunto-dados/receitas-{year}.zip"
 )
@@ -1061,6 +1063,280 @@ class TceSpRevenueAdapter(SourceAdapter):
             raise SourceValidationError("ID TCE-SP duplicado", code="duplicate_key")
         if any(record.year not in self.years for record in records):
             raise SourceValidationError("Exercício TCE-SP divergente", code="period_mismatch")
+
+    def upsert(self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot) -> None:
+        _upsert_fiscal_records(db, records, snapshot, self.quality_warnings)
+
+
+class TceSpExpenseAdapter(SourceAdapter):
+    """Collect monthly expense phases without retaining supplier personal data."""
+
+    source_name = "TCE-SP/Audesp — despesas municipais agregadas"
+    dataset_code = "tcesp_expenses"
+    required_fields: ClassVar[set[str]] = {
+        "orgao",
+        "mes",
+        "evento",
+        "nr_empenho",
+        "id_fornecedor",
+        "nm_fornecedor",
+        "dt_emissao_despesa",
+        "vl_despesa",
+    }
+    phase_labels: ClassVar[dict[str, str]] = {
+        "committed": "Empenhado",
+        "liquidated": "Liquidado",
+        "paid": "Pago",
+        "reinforcement": "Reforço",
+        "annulment": "Anulação",
+    }
+    month_names: ClassVar[dict[int, str]] = {
+        1: "JANEIRO",
+        2: "FEVEREIRO",
+        3: "MARCO",
+        4: "ABRIL",
+        5: "MAIO",
+        6: "JUNHO",
+        7: "JULHO",
+        8: "AGOSTO",
+        9: "SETEMBRO",
+        10: "OUTUBRO",
+        11: "NOVEMBRO",
+        12: "DEZEMBRO",
+    }
+
+    def __init__(
+        self,
+        *,
+        raw_data_dir: Path,
+        municipalities: dict[str, str],
+        years: Iterable[int],
+        months: Iterable[int],
+        max_requests: int = 250,
+    ):
+        super().__init__(raw_data_dir=raw_data_dir)
+        self.municipalities = dict(sorted(municipalities.items()))
+        self.years = sorted({int(year) for year in years})
+        self.months = sorted({int(month) for month in months})
+        self.max_requests = max_requests
+        self._slugs: dict[str, str] = {}
+        if not self.municipalities:
+            raise ValueError("TCE-SP exige ao menos um município")
+        if any(year < 2014 or year > datetime.now(UTC).year for year in self.years):
+            raise ValueError("Exercício TCE-SP fora do intervalo auditado")
+        if not self.months or any(month < 1 or month > 12 for month in self.months):
+            raise ValueError("Mês TCE-SP inválido")
+        if len(self.municipalities) * len(self.years) * len(self.months) > max_requests:
+            raise ValueError("Recorte TCE-SP excede o limite de requisições")
+
+    def discover(self) -> dict[str, Any]:
+        url = f"{TCESP_API_URL}/municipios"
+        response = self.get(url, timeout=60)
+        self._assert_url(response)
+        try:
+            rows = response.json()
+        except json.JSONDecodeError as exc:
+            raise SourceValidationError(
+                "Lista de municípios TCE-SP inválida", code="invalid_json"
+            ) from exc
+        if not isinstance(rows, list) or not all(
+            isinstance(row, dict) and {"municipio", "municipio_extenso"}.issubset(row)
+            for row in rows
+        ):
+            raise SourceValidationError("Schema de municípios TCE-SP alterado", code="schema_drift")
+        available = {normalize_name(row["municipio_extenso"]): row["municipio"] for row in rows}
+        missing: list[str] = []
+        for code, name in self.municipalities.items():
+            slug = available.get(normalize_name(name))
+            if slug:
+                self._slugs[code] = slug
+            else:
+                missing.append(code)
+        if missing:
+            raise SourceValidationError(
+                "Município ausente na API TCE-SP",
+                code="geography_missing",
+                details={"municipality_codes": missing},
+            )
+        return {
+            "catalog": "https://transparencia.tce.sp.gov.br/apis",
+            "years": self.years,
+            "months": self.months,
+            "municipalities": sorted(self._slugs),
+            "format": "JSON agregado antes da persistência",
+            "privacy": "fornecedor e identificador descartados em memória",
+            "license_status": "não declarada na página auditada",
+        }
+
+    @staticmethod
+    def _assert_url(response: httpx.Response) -> None:
+        parsed = urlparse(str(response.url))
+        if parsed.scheme != "https" or parsed.hostname != "transparencia.tce.sp.gov.br":
+            raise SourceValidationError("Redirect TCE-SP não permitido", code="unsafe_redirect")
+
+    @staticmethod
+    def _phase(value: Any) -> str:
+        normalized = normalize_name(str(value))
+        if normalized == "EMPENHADO":
+            return "committed"
+        if normalized == "VALOR LIQUIDADO":
+            return "liquidated"
+        if normalized == "VALOR PAGO":
+            return "paid"
+        if normalized.startswith("REFOR"):
+            return "reinforcement"
+        if normalized.startswith("ANULA"):
+            return "annulment"
+        raise SourceValidationError(
+            "Evento de despesa TCE-SP desconhecido",
+            code="schema_drift",
+            details={"event": str(value)[:80]},
+        )
+
+    def fetch(self) -> list[FetchedPayload]:
+        if not self._slugs:
+            self.discover()
+        payloads: list[FetchedPayload] = []
+        for municipality_code, slug in self._slugs.items():
+            for year in self.years:
+                for month in self.months:
+                    url = f"{TCESP_API_URL}/despesas/{slug}/{year}/{month}"
+                    response = self.get(url, timeout=120)
+                    self._assert_url(response)
+                    upstream = response.content
+                    upstream_sha256 = hashlib.sha256(upstream).hexdigest()
+                    try:
+                        rows = response.json()
+                    except json.JSONDecodeError as exc:
+                        raise SourceValidationError(
+                            "Resposta de despesas TCE-SP inválida", code="invalid_json"
+                        ) from exc
+                    if not isinstance(rows, list):
+                        raise SourceValidationError(
+                            "Envelope de despesas TCE-SP alterado", code="schema_drift"
+                        )
+                    totals: dict[str, Decimal] = {}
+                    counts: dict[str, int] = {}
+                    for row in rows:
+                        if not isinstance(row, dict) or not self.required_fields.issubset(row):
+                            raise SourceValidationError(
+                                "Schema de despesas TCE-SP alterado", code="schema_drift"
+                            )
+                        if normalize_name(row["mes"]) != self.month_names[month]:
+                            raise SourceValidationError(
+                                "Período de despesas TCE-SP divergente",
+                                code="period_mismatch",
+                                details={
+                                    "requested_month": month,
+                                    "received": str(row["mes"])[:40],
+                                },
+                            )
+                        phase = self._phase(row["evento"])
+                        amount = decimal_value(row["vl_despesa"], brazilian=True)
+                        if amount is None:
+                            raise SourceValidationError(
+                                "Valor de despesa TCE-SP ausente", code="invalid_money"
+                            )
+                        totals[phase] = totals.get(phase, Decimal(0)) + amount
+                        counts[phase] = counts.get(phase, 0) + 1
+                    sanitized = {
+                        "municipality_code": municipality_code,
+                        "year": year,
+                        "month": month,
+                        "phases": [
+                            {
+                                "code": phase,
+                                "label": self.phase_labels[phase],
+                                "amount": format(totals[phase], "f"),
+                                "source_rows": counts[phase],
+                            }
+                            for phase in sorted(totals)
+                        ],
+                        "source_rows": len(rows),
+                        "upstream_sha256": upstream_sha256,
+                        "privacy": "supplier fields discarded before snapshot",
+                    }
+                    content = json.dumps(
+                        sanitized,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                    headers = self.selected_headers(response)
+                    headers.update(
+                        {
+                            "x-lente-upstream-sha256": upstream_sha256,
+                            "x-lente-source-rows": str(len(rows)),
+                            "x-lente-personal-fields": "discarded-before-snapshot",
+                        }
+                    )
+                    payloads.append(
+                        FetchedPayload(
+                            content=content,
+                            url=url,
+                            fetched_at=datetime.now(UTC),
+                            original_format="json",
+                            response_headers=headers,
+                            published_at=self.header_datetime(response, "last-modified"),
+                            persist_raw=True,
+                            resource_version=f"{municipality_code}:{year}:{month}",
+                        )
+                    )
+        return payloads
+
+    def parse(self, payload: FetchedPayload) -> list[FiscalRecord]:
+        document = json.loads(payload.read_bytes())
+        municipality = str(document["municipality_code"])
+        year = int(document["year"])
+        month = int(document["month"])
+        agency = AgencyRecord(
+            source_system="tcesp_expense",
+            source_key=f"{municipality}:all-municipal-agencies",
+            name="Órgãos municipais agregados — TCE-SP/Audesp",
+            entity_identifier=None,
+            unit_code=None,
+            municipality_code=municipality,
+            state="SP",
+        )
+        return [
+            FiscalRecord(
+                source_system="tcesp_expense",
+                source_key=f"{municipality}:{year}:{month}:{phase['code']}",
+                municipality_code=municipality,
+                agency=agency,
+                statement_type="expense_event_monthly",
+                year=year,
+                period=month,
+                periodicity="monthly",
+                annex=None,
+                power=None,
+                column_code=phase["code"],
+                account_code=phase["code"],
+                account_name=phase["label"],
+                account_type="expense",
+                hierarchy={"source_rows": phase["source_rows"]},
+                amount=decimal_value(phase["amount"]),
+                document_url=payload.url,
+                source_published_at=payload.published_at,
+            )
+            for phase in document["phases"]
+        ]
+
+    def validate(self, records: list[FiscalRecord]) -> None:
+        if not records:
+            return
+        keys = [record.source_key for record in records]
+        if len(keys) != len(set(keys)):
+            raise SourceValidationError("Fase TCE-SP duplicada", code="duplicate_key")
+        if any(record.amount is None or record.amount < 0 for record in records):
+            raise SourceValidationError("Total de fase TCE-SP inválido", code="invalid_money")
+
+    def checkpoint_metadata(self) -> dict[str, Any]:
+        return {
+            "years": self.years,
+            "months": self.months,
+            "municipalities": sorted(self.municipalities),
+        }
 
     def upsert(self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot) -> None:
         _upsert_fiscal_records(db, records, snapshot, self.quality_warnings)

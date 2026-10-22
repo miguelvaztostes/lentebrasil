@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from lente_api.models import Agency, GeoCodeMapping, GeoUnit, Municipality
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,10 +22,10 @@ from ingestion.adapters.transparency import (
     PncpContractAdapter,
     PncpProcurementAdapter,
     SiconfiStatementAdapter,
+    TceSpExpenseAdapter,
     TceSpRevenueAdapter,
     normalize_name,
 )
-from lente_api.models import Agency, GeoCodeMapping, GeoUnit, Municipality
 
 LEGACY_MUNICIPALITY = "3543402"
 
@@ -116,6 +117,18 @@ def build_adapter(
                 normalize_name(item.name): item.ibge_code for item in municipalities
             },
             years=range(first, last + 1),
+        )
+    if source == "tcesp_expenses":
+        if any(item.state != "SP" for item in municipalities):
+            raise ValueError("TCE-SP só pode ser aplicado a municípios paulistas")
+        first = start_year if start_year is not None else 2025
+        last = end_year if end_year is not None else first
+        return TceSpExpenseAdapter(
+            raw_data_dir=raw_data_dir,
+            municipalities={item.ibge_code: item.name for item in municipalities},
+            years=range(first, last + 1),
+            months=periods or range(1, 13),
+            max_requests=max_requests,
         )
     if source in {"siconfi_rgf", "siconfi_dca"}:
         statement_type = source.removeprefix("siconfi_")

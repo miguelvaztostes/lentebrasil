@@ -20,7 +20,9 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   cobertura e publicação.
 - Coleta real da população estimada pelo IBGE/SIDRA.
 - Coleta real do RREO/Siconfi, preservando receita, empenho, liquidação e pagamento.
-- Contratações e contratos PNCP com paginação, versões e checkpoints; RGF/DCA do Siconfi e receitas TCE-SP/Audesp por rubrica, sem consolidação indevida entre fontes.
+- Contratações e contratos PNCP com paginação, versões e checkpoints; RGF/DCA do Siconfi,
+  receitas TCE-SP/Audesp por rubrica e despesas mensais agregadas por fase, sem consolidação
+  indevida entre fontes e sem persistir dados de fornecedores da API de despesas.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
   preservando supressões e distinguindo previsão de transferência de execução financeira.
@@ -30,7 +32,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
 - CSV por indicador, status público dos pipelines, health/readiness e logs estruturados.
 - Docker Compose, Caddy opcional, testes e CI.
 
-A transparência municipal não revelou um download tabular na auditoria inicial; o primeiro recorte fiscal usa o Siconfi.
+A visão geral de transparência combina fontes supramunicipais oficiais verificadas. Ela não afirma
+cobertura integral de todos os portais ou atos públicos; lacunas aparecem como indisponíveis.
 
 ## Requisitos
 
@@ -69,6 +72,7 @@ docker compose run --rm ingestion python -m ingestion.cli ingest --source pncp -
 docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi_rgf --dry-run --municipalities 3543402 --start-year 2025 --periods 3 --annexes "RGF-Anexo 01"
 docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi_dca --dry-run --municipalities 3543402 --start-year 2024 --annexes "DCA-Anexo I-AB"
 docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_revenues --dry-run --municipalities 3543402 --start-year 2025
+docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_expenses --dry-run --municipalities 3543402 --start-year 2025 --periods 1 --max-requests 1
 ```
 
 Coletar e persistir:
@@ -132,6 +136,7 @@ Principais rotas:
 - `GET /api/v1/education/metrics?municipality=3543402&dataset=fnde_pnae_municipal`
 - `GET /api/v1/education/municipalities/{ibge_code}`
 - `GET /api/v1/transparency/fiscal-statements?municipality=3543402&year=2025`
+- `GET /api/v1/transparency/overview?municipality=3543402&year=2025`
 - `GET /api/v1/transparency/procurements?municipality=3543402&year=2026`
 - `GET /api/v1/transparency/contracts?municipality=3543402`
 - `GET /api/v1/transparency/transfers?municipality=3543402`

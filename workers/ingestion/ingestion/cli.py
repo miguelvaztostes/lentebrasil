@@ -5,14 +5,14 @@ from dataclasses import asdict
 from pathlib import Path
 
 import typer
+from lente_api.database import SessionLocal
+from lente_api.settings import get_settings
 
 from ingestion.adapters import ADAPTERS
 from ingestion.adapters.education import rollback_education_release
 from ingestion.factory import build_adapter, select_municipalities
 from ingestion.geography import sync_official_geographies
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
-from lente_api.database import SessionLocal
-from lente_api.settings import get_settings
 
 app = typer.Typer(help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True)
 
@@ -45,7 +45,7 @@ def _parameters(
         "uf": uf,
         "start_year": start_year,
         "end_year": end_year,
-        "periods": [int(item) for item in (_split(periods) or ["6"])],
+        "periods": [int(item) for item in (_split(periods) or [])] or None,
         "annexes": _split(annexes) or ["RREO-Anexo 01"],
         "resource_version": resource_version,
         "batch_size": batch_size,
@@ -72,6 +72,7 @@ def ingest(
         ...,
         help=(
             "ibge, siconfi, cnes, educação, pncp, pncp_contracts, tcesp_revenues, "
+            "tcesp_expenses, "
             "siconfi_rgf, siconfi_dca ou all"
         ),
     ),
@@ -83,7 +84,7 @@ def ingest(
     uf: str | None = typer.Option(None, help="Seleciona os municípios cadastrados de uma UF"),
     start_year: int | None = None,
     end_year: int | None = None,
-    periods: str = "6",
+    periods: str = "",
     annexes: str = "RREO-Anexo 01",
     resource_version: str | None = None,
     batch_size: int = 50,
@@ -154,7 +155,7 @@ def schedule(
     uf: str | None = None,
     start_year: int | None = None,
     end_year: int | None = None,
-    periods: str = "6",
+    periods: str = "",
     annexes: str = "RREO-Anexo 01",
     resource_version: str | None = None,
     batch_size: int = 50,

@@ -7,11 +7,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from lente_api.models import Dataset, IngestionJob
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ingestion.factory import build_adapter
-from lente_api.models import Dataset, IngestionJob
 
 
 def job_key(source: str, parameters: dict[str, Any]) -> str:
@@ -35,6 +35,7 @@ def schedule_job(
         "pncp": "pncp_procurements",
         "pncp_contracts": "pncp_contracts",
         "tcesp_revenues": "tcesp_revenues",
+        "tcesp_expenses": "tcesp_expenses",
         "siconfi_rgf": "siconfi_rgf",
         "siconfi_dca": "siconfi_dca",
     }.get(source)

@@ -206,6 +206,25 @@ export type FiscalStatement = {
   source: TransparencySource;
 };
 
+export type TransparencyOverview = {
+  municipality_ibge_code: string;
+  year: number;
+  period: number | null;
+  revenue_collected: string | null;
+  expense_phases: Array<{ phase: string; amount: string | null }>;
+  procurements: number;
+  contracts: number;
+  availability: Record<string, "available" | "unavailable">;
+  sources: Array<{
+    dataset: string;
+    provider?: string;
+    url?: string;
+    license?: string | null;
+    connector_status?: string;
+  }>;
+  methodology: string;
+};
+
 export type Paged<T> = { items: T[]; count: number; limit: number; offset: number; notice?: string; methodology?: string };
 
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {

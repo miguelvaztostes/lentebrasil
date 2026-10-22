@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -77,6 +78,95 @@ def _source(db: Session, snapshot_id: Any, document_url: str) -> dict[str, Any]:
 def _page(db: Session, statement: Any, *, limit: int, offset: int) -> tuple[list[Any], int]:
     count = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
     return list(db.scalars(statement.offset(offset).limit(limit))), count
+
+
+def _dataset_source(db: Session, code: str) -> dict[str, Any]:
+    row = db.execute(
+        select(Dataset, Source)
+        .join(Source, Source.id == Dataset.source_id)
+        .where(Dataset.code == code)
+    ).first()
+    if row is None:
+        return {"dataset": code, "availability": "not_configured"}
+    dataset, source = row
+    return {
+        "dataset": dataset.code,
+        "provider": source.provider,
+        "url": source.source_url,
+        "license": source.license,
+        "source_status": source.source_status,
+        "connector_status": dataset.connector_status,
+        "publication_status": dataset.publication_status,
+    }
+
+
+@router.get("/overview")
+def overview(
+    db: DbSession,
+    municipality: str = Query(..., pattern=r"^\d{7}$"),
+    year: int = Query(datetime.now(UTC).year, ge=2000, le=2100),
+    period: int | None = Query(None, ge=1, le=12),
+) -> dict[str, Any]:
+    expense_statement = _current(FiscalStatement).where(
+        FiscalStatement.source_system == "tcesp_expense",
+        FiscalStatement.municipality_ibge_code == municipality,
+        FiscalStatement.reference_year == year,
+    )
+    revenue_statement = _current(FiscalStatement).where(
+        FiscalStatement.source_system == "tcesp_revenue",
+        FiscalStatement.municipality_ibge_code == municipality,
+        FiscalStatement.reference_year == year,
+    )
+    if period is not None:
+        expense_statement = expense_statement.where(FiscalStatement.reference_period == period)
+        revenue_statement = revenue_statement.where(FiscalStatement.reference_period == period)
+    expenses = expense_statement.subquery()
+    phases = db.execute(
+        select(expenses.c.column_code, func.sum(expenses.c.amount))
+        .group_by(expenses.c.column_code)
+        .order_by(expenses.c.column_code)
+    ).all()
+    revenues = revenue_statement.subquery()
+    revenue_total = db.scalar(select(func.sum(revenues.c.amount)))
+
+    procurement_statement = _current(Procurement).where(
+        Procurement.municipality_ibge_code == municipality,
+        Procurement.procurement_year == year,
+    )
+    contract_statement = _current(Contract).where(
+        Contract.municipality_ibge_code == municipality,
+        Contract.contract_year == year,
+    )
+    procurement_count = (
+        db.scalar(select(func.count()).select_from(procurement_statement.subquery())) or 0
+    )
+    contract_count = db.scalar(select(func.count()).select_from(contract_statement.subquery())) or 0
+    return {
+        "municipality_ibge_code": municipality,
+        "year": year,
+        "period": period,
+        "revenue_collected": _money(revenue_total),
+        "expense_phases": [{"phase": phase, "amount": _money(amount)} for phase, amount in phases],
+        "procurements": procurement_count,
+        "contracts": contract_count,
+        "availability": {
+            "revenue": "available" if revenue_total is not None else "unavailable",
+            "expenses": "available" if phases else "unavailable",
+            "procurements": "available" if procurement_count else "unavailable",
+            "contracts": "available" if contract_count else "unavailable",
+        },
+        "sources": [
+            _dataset_source(db, "tcesp_revenues"),
+            _dataset_source(db, "tcesp_expenses"),
+            _dataset_source(db, "pncp_procurements"),
+            _dataset_source(db, "pncp_contracts"),
+        ],
+        "methodology": (
+            "Receita arrecadada e eventos de despesa TCE-SP são somados somente dentro do "
+            "mesmo exercício e recorte mensal. Empenho, liquidação, pagamento, reforço e "
+            "anulação permanecem separados; valores Siconfi não são adicionados aos totais."
+        ),
+    }
 
 
 @router.get("/fiscal-statements")
@@ -401,6 +491,7 @@ def export_fiscal_csv(
     db: DbSession,
     municipality: str = Query(..., pattern=r"^\d{7}$"),
     year: int | None = None,
+    period: int | None = Query(None, ge=1, le=12),
     source: str | None = None,
     limit: int = Query(5000, ge=1, le=10000),
 ) -> Response:
@@ -409,6 +500,8 @@ def export_fiscal_csv(
     )
     if year is not None:
         statement = statement.where(FiscalStatement.reference_year == year)
+    if period is not None:
+        statement = statement.where(FiscalStatement.reference_period == period)
     if source is not None:
         statement = statement.where(FiscalStatement.source_system == source)
     rows = db.execute(

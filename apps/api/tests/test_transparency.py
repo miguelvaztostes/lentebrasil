@@ -13,6 +13,7 @@ from ingestion.adapters.base import FetchedPayload
 from ingestion.adapters.transparency import (
     PncpProcurementAdapter,
     SiconfiStatementAdapter,
+    TceSpExpenseAdapter,
     TceSpRevenueAdapter,
 )
 
@@ -175,3 +176,83 @@ def test_tcesp_csv_preserves_rubric_and_does_not_turn_missing_into_zero(tmp_path
         None,
     ]
     assert all(record.account_code == "111000000" for record in records)
+
+
+def test_tcesp_expenses_aggregate_phases_and_discard_supplier_data(tmp_path: Path) -> None:
+    adapter = TceSpExpenseAdapter(
+        raw_data_dir=tmp_path,
+        municipalities={"3543402": "Ribeirão Preto"},
+        years=[2025],
+        months=[1],
+        max_requests=1,
+    )
+    municipalities = [{"municipio": "ribeirao-preto", "municipio_extenso": "Ribeirão Preto"}]
+    common = {
+        "orgao": "Prefeitura Municipal",
+        "mes": "Janeiro",
+        "nr_empenho": "1-2025",
+        "id_fornecedor": "PESSOA FÍSICA - 123456",
+        "nm_fornecedor": "NOME QUE NÃO PODE SER PERSISTIDO",
+        "dt_emissao_despesa": "02/01/2025",
+    }
+    expenses = [
+        {**common, "evento": "Empenhado", "vl_despesa": "100,10"},
+        {**common, "evento": "Empenhado", "vl_despesa": "20,20"},
+        {**common, "evento": "Valor Liquidado", "vl_despesa": "80,05"},
+        {**common, "evento": "Valor Pago", "vl_despesa": "60,01"},
+        {**common, "evento": "Reforço", "vl_despesa": "5,00"},
+        {**common, "evento": "Anulação", "vl_despesa": "2,00"},
+    ]
+
+    def get(url: str, *, timeout: float = 60) -> httpx.Response:
+        body = municipalities if url.endswith("/municipios") else expenses
+        return httpx.Response(
+            200,
+            content=json.dumps(body, ensure_ascii=False).encode(),
+            request=httpx.Request("GET", url),
+            headers={"content-type": "application/json"},
+        )
+
+    adapter.get = get  # type: ignore[method-assign]
+    adapter.discover()
+    payload = adapter.fetch()[0]
+    assert b"NOME QUE" not in payload.read_bytes()
+    assert b"123456" not in payload.read_bytes()
+    assert payload.response_headers["x-lente-personal-fields"] == "discarded-before-snapshot"
+    records = adapter.parse(payload)
+    adapter.validate(records)
+    amounts = {record.column_code: record.amount for record in records}
+    assert amounts == {
+        "annulment": Decimal("2.00"),
+        "committed": Decimal("120.30"),
+        "liquidated": Decimal("80.05"),
+        "paid": Decimal("60.01"),
+        "reinforcement": Decimal("5.00"),
+    }
+    assert next(record for record in records if record.column_code == "committed").hierarchy == {
+        "source_rows": 2
+    }
+
+
+def test_tcesp_expense_empty_month_remains_absent_instead_of_zero(tmp_path: Path) -> None:
+    adapter = TceSpExpenseAdapter(
+        raw_data_dir=tmp_path,
+        municipalities={"3543402": "Ribeirão Preto"},
+        years=[2025],
+        months=[2],
+        max_requests=1,
+    )
+    payload = _payload(
+        json.dumps(
+            {
+                "municipality_code": "3543402",
+                "year": 2025,
+                "month": 2,
+                "phases": [],
+                "source_rows": 0,
+            }
+        ).encode()
+    )
+    records = adapter.parse(payload)
+    adapter.validate(records)
+    assert records == []

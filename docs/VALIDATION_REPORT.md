@@ -250,6 +250,29 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   vulnerabilidades de produção.
 - Docker: imagens de API, worker e web construídas; serviços locais ficaram saudáveis após
   recriação. Ruff global e verificação de formatação dos arquivos alterados foram aprovados.
-- CGU não foi executado porque nenhum token autorizado foi fornecido. Despesas TCE-SP (1,96 GB),
-  atas/PCA PNCP e portais municipais continuam sem aceite; as razões constam em
-  `TRANSPARENCY_SOURCES.md`.
+- CGU não foi executado porque nenhum token autorizado foi fornecido. Na conclusão original,
+  despesas TCE-SP, atas/PCA PNCP e portais municipais ainda estavam sem aceite; a extensão abaixo
+  substitui o estado das despesas após validar a API municipal.
+
+## Extensão da Etapa 3B — visão geral e despesas TCE-SP — 22/10/2026
+
+- A API municipal TCE-SP, embora documentada textualmente até 2019, respondeu HTTP 200 para
+  Ribeirão Preto em janeiro/2025: 7.559 lançamentos e cinco eventos contábeis.
+- A carga agregou antes da persistência 3.945 empenhos, 2.062 liquidações, 1.417 pagamentos,
+  20 reforços e 115 anulações. Os cinco totais usam `Decimal` e permanecem separados.
+- Nomes e identificadores de fornecedores foram descartados em memória. O snapshot contém cinco
+  agregados, contagens e hash SHA-256 da resposta upstream; busca no volume confirmou ausência
+  dos campos pessoais. Reexecução manteve cinco fatos, revisão 1 e um snapshot.
+- A migração `0009` cadastra `tcesp_expenses`; o catálogo liga LNT-0039/LNT-0100 ao conector.
+  A API `/transparency/overview` expõe receita, fases de despesa e contagens PNCP com ausência
+  explícita e metodologia sem compensação automática.
+- Backend: 33 testes aprovados no PostgreSQL limpo; os testes novos verificam agregação, precisão,
+  ausência sem conversão em zero e descarte de fornecedor. A página pública passou a explicar
+  sua cobertura e as limitações.
+- Ruff aprovou todos os arquivos Python alterados nesta extensão. A varredura integral ainda aponta
+  nove ocorrências preexistentes em `base.py`, educação, geografia e scheduler; elas não foram
+  incluídas neste diff. O build de produção validou TypeScript e as 23 rotas Next.js, e o teste de
+  conteúdo do frontend foi aprovado.
+- Atas PNCP foram verificadas com 39 registros no recorte municipal de 01–22/10/2026; PCA
+  respondeu 204. Permanecem complementos fora dos totais, assim como CGU sem token e portal
+  municipal sem exportação homologada.

@@ -18,12 +18,15 @@ TRANSPARENCY_DECISIONS: dict[str, tuple[str, str]] = {
         "OpenAPI oficial PNCP validada; paginação de contratações e contratos implementada.",
     ),
     "LNT-0039": (
-        "manual_review",
-        "API histórica TCE-SP não substitui a validação dos arquivos por exercício.",
+        "integrate",
+        (
+            "API municipal TCE-SP validada também para 2025; despesas são agregadas por "
+            "mês/fase e dados de fornecedor são descartados antes do snapshot."
+        ),
     ),
     "LNT-0040": (
         "metadata_only",
-        "Coleção TCE-SP auditada; nesta etapa somente receitas 2025 foi homologada.",
+        "Coleção TCE-SP auditada; receitas CSV e despesas via API possuem conectores próprios.",
     ),
     "LNT-0042": (
         "metadata_only",
@@ -49,8 +52,11 @@ TRANSPARENCY_DECISIONS: dict[str, tuple[str, str]] = {
         "ZIP/CSV oficial de receitas 2025 validado com rubricas preservadas.",
     ),
     "LNT-0100": (
-        "manual_review",
-        "Arquivo de despesas 2025 tem 1,96 GB; ingestão e reconciliação por fase foram adiadas.",
+        "integrate",
+        (
+            "API oficial por município/mês substitui o ZIP nacional de 2,10 GB; eventos "
+            "permanecem separados e campos pessoais não são persistidos."
+        ),
     ),
     "LNT-0101": ("restricted", "Convênios CGU exigem token autorizado não disponível."),
     "LNT-0102": ("restricted", "Emendas CGU exigem token autorizado não disponível."),

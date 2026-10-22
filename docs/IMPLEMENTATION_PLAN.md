@@ -101,7 +101,10 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 
 - PNCP: janela máxima de 31 dias, paginação por modalidade/município para contratações e por CNPJ de órgão homologado para contratos; checkpoint guarda janela, atualização, chave e páginas.
 - Siconfi: RREO existente preservado; RGF e DCA adicionados como linhas versionadas, respeitando 1 requisição/s e sem misturar fases, períodos ou fontes.
-- TCE-SP: receitas 2025 são processadas em streaming de ZIP/CSV e por rubrica. Despesas e licitações permanecem fora da publicação até conciliação segura.
+- TCE-SP: receitas 2025 são processadas em streaming de ZIP/CSV e por rubrica. Despesas usam a
+  API oficial por município/mês, são agregadas por evento contábil antes do snapshot e descartam
+  fornecedor/identificador em memória. Empenho, liquidação, pagamento, reforço e anulação não se
+  compensam automaticamente. Licitações TCE-SP continuam fora até conciliação segura com PNCP.
 - CGU permanece bloqueado sem token autorizado. FNDE/PNAE continua educacional e não vira transferência paga. Portais municipais sem exportação permanecem manuais.
 - API e dashboard são consultivos; não produzem acusação ou escore de irregularidade.
 

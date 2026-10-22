@@ -45,9 +45,11 @@ HOMOLOGATED_DATASET_LINKS = {
     "LNT-0010": "inep_saeb_municipal",
     "LNT-0081": "fnde_pnae_municipal",
     "LNT-0038": "pncp_procurements",
+    "LNT-0039": "tcesp_expenses",
     "LNT-0094": "siconfi_rgf",
     "LNT-0095": "siconfi_dca",
     "LNT-0099": "tcesp_revenues",
+    "LNT-0100": "tcesp_expenses",
 }
 ALLOWED_FORMATS = {
     "api",

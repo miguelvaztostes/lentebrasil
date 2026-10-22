@@ -34,7 +34,7 @@
 | `agencies` | Órgão/unidade conforme a fonte, com município anulável para não atribuir contratação intermunicipal por inferência. |
 | `suppliers` | Identidade separada e bloqueada por padrão (`public_identity=false`, `privacy_review=pending`); CPF e CNPJ de MEI não são publicados sem revisão. |
 | `budget_accounts` | Conta/rubrica por sistema de origem; hierarquia original em JSON. |
-| `fiscal_statements` | Fonte/chave/versão, município, demonstrativo, exercício, período, anexo, poder, coluna e conta. `amount` é `NUMERIC(24,6)` anulável. |
+| `fiscal_statements` | Fonte/chave/versão, município, demonstrativo, exercício, período, anexo, poder, coluna e conta. `amount` é `NUMERIC(24,6)` anulável. Inclui despesas TCE-SP agregadas por município/mês/evento antes da persistência. |
 | `procurements` | Contratação PNCP/versão com órgão, município informado, modalidade, situação, valores e datas. |
 | `procurement_items` | Item da contratação; estrutura criada para expansão, sem publicação simulada. |
 | `contracts` | Contrato/versão com vínculo opcional à contratação; fornecedor permanece anulável. |

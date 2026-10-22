@@ -29,9 +29,10 @@ Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa
 | Tesouro Nacional / documentação | `confirmed` | `https://apidatalake.tesouro.gov.br/docs/siconfi/` e `https://apidatalake.tesouro.gov.br/docs/siconfi.yaml` | OpenAPI/Swagger YAML; Apache 2.0 | Contrato e parâmetros obrigatórios confirmados. |
 | Tesouro Nacional / Siconfi RGF e DCA | `confirmed` | rotas oficiais `rgf` e `dca` documentadas no OpenAPI | JSON; Apache 2.0; 1 requisição/s | Em 22/10/2026, RGF 2025/3/Anexo 01 de Ribeirão Preto retornou 165 linhas e DCA 2024/Anexo I-AB retornou 172. Contas, colunas, poder e períodos são preservados. |
 | PNCP / Consulta pública | `confirmed` | `https://pncp.gov.br/pncp-consulta/v3/api-docs` | JSON/OpenAPI; consulta pública sem token | Em 22/10/2026, modalidade 8, publicação de 01–22/10 e IBGE `3543402` retornou 58 registros em duas páginas. Conector usa paginação, chave PNCP, atualização global e documento de origem. |
+| PNCP / Atas e PCA | `confirmed`, conector pendente | rotas oficiais `/v1/atas/atualizacao` e `/v1/pca/atualizacao` | JSON/OpenAPI; consulta pública sem token | Atas retornou 39 registros para o CNPJ municipal no recorte 01–22/10/2026; PCA respondeu 204. Os recursos não são somados às contratações nem apresentados como cobertura publicada. |
 | TCE-SP / Receitas 2025 | `confirmed` | `https://transparencia.tce.sp.gov.br/sites/default/files/conjunto-dados/receitas-2025.zip` | ZIP/CSV CP1252; licença de reutilização não declarada | 35.462.775 bytes, SHA-256 `16df083d2088127108957a028f6c824265813c74542f528108526b44a392b84b`. Três linhas foram reconciliadas por ID/rubrica/valor. |
 | TCE-SP / Licitações 2025-01 | `metadata_only` | arquivo mensal listado na página oficial | ZIP/CSV | Artefato e três linhas foram inspecionados; não ingerido por conter participantes/CNPJ e sobrepor PNCP sem conciliação homologada. |
-| TCE-SP / Despesas 2025 | `pending_review` | arquivo anual listado na página oficial | ZIP/CSV de 1,96 GB | Adiado por tamanho e necessidade de reconciliar fases sem dupla contagem. |
+| TCE-SP / Despesas 2025 | `confirmed` | `https://transparencia.tce.sp.gov.br/api/json/despesas/ribeirao-preto/2025/1` | API JSON; licença de reutilização não declarada | Embora a documentação textual indique 2014–2019, o recurso oficial respondeu em 2025. Janeiro retornou 7.559 linhas. O conector soma somente dentro de município/mês/evento e descarta fornecedor e identificador antes do snapshot. |
 | CGU / Portal da Transparência | `restricted` | `https://api.portaldatransparencia.gov.br/` | API com token gov.br | Nenhum token foi fornecido. Conector não ativado; nenhum segredo armazenado. |
 | INEP / Censo Escolar 2024 | `confirmed` | `https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip` | ZIP/CSV oficial; termos/LGPD do Inep | HTTP 200; artefato, encoding, delimitador, schema e dicionário inspecionados em 21/10/2026. Conector usa somente campos escolares agregados publicáveis. |
 | INEP / IDEB 2005–2025 | `confirmed` | `https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip` | ZIP/XLSX e notas oficiais | HTTP 200; pacote municipal 2025 e cabeçalhos da planilha validados em 21/10/2026. Supressões são preservadas. |
@@ -60,6 +61,8 @@ Uma fonte só muda para `confirmed` quando a URL canônica responde e o conteúd
 - `pncp_procurements` e `pncp_contracts`: registros versionados; fornecedores suprimidos até revisão LGPD.
 - `siconfi_rgf` e `siconfi_dca`: fatos por linha, conta e coluna original, sem soma automática.
 - `tcesp_revenues`: receita mensal por rubrica; não substitui nem é somada ao Siconfi.
+- `tcesp_expenses`: totais mensais separados de empenho, liquidação, pagamento, reforço e
+  anulação; detalhes pessoais da resposta não são persistidos.
 
 O catálogo nacional mostrado no portal preserva as 165 URLs recebidas no inventário como
 metadados candidatos. A publicação do catálogo não altera o estado de verificação dessas URLs e

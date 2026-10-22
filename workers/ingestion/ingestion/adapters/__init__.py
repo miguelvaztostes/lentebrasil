@@ -7,6 +7,7 @@ from ingestion.adapters.transparency import (
     PncpContractAdapter,
     PncpProcurementAdapter,
     SiconfiStatementAdapter,
+    TceSpExpenseAdapter,
     TceSpRevenueAdapter,
 )
 
@@ -21,6 +22,7 @@ ADAPTERS = {
     "pncp": PncpProcurementAdapter,
     "pncp_contracts": PncpContractAdapter,
     "tcesp_revenues": TceSpRevenueAdapter,
+    "tcesp_expenses": TceSpExpenseAdapter,
     "siconfi_rgf": SiconfiStatementAdapter,
     "siconfi_dca": SiconfiStatementAdapter,
 }
@@ -37,5 +39,6 @@ __all__ = [
     "PncpProcurementAdapter",
     "SiconfiRreoAdapter",
     "SiconfiStatementAdapter",
+    "TceSpExpenseAdapter",
     "TceSpRevenueAdapter",
 ]

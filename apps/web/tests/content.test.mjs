@@ -31,4 +31,6 @@ test("public disclaimer and empty-data language remain visible", async () => {
   assert.match(transparency, /Não há classificação automática de irregularidade/);
   assert.match(transparency, /Ausência não é exibida como zero/);
   assert.match(transparency, /exports\/procurements\.csv/);
+  assert.match(transparency, /Visão geral da transparência/);
+  assert.match(transparency, /Esses eventos não são compensados automaticamente/);
 });
