@@ -86,12 +86,14 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 ## Etapa 3A — educação
 
 - Modelo histórico separado para escola, matrículas e métricas; publicação por release atômico.
-- Conectores versionados do Censo Escolar 2024 e Ideb 2025 com staging, hash, limites de ZIP,
-  whitelist de host/schema e seleção por município ou UF.
+- Conectores versionados do Censo Escolar 2024, Ideb 2025, Saeb 2023 e PNAE 2024 com staging,
+  hash, limites de arquivo compactado/descompactado, whitelist de host/schema e seleção municipal.
 - API educacional não aciona provedores externos e preserva ausência/supressão.
 - Dashboard municipal e detalhe público de escola não armazenam nem exibem dados pessoais.
-- Próximo backlog verificável: Saeb em RAR, indicadores anuais e programas FNDE, cada qual como
-  recurso independente; não ampliar antes de reconciliação com total oficial.
+- Saeb lê o XLSB municipal do RAR oficial em streaming e publica apenas médias agregadas;
+  PNAE publica alunos considerados e valores previstos por ação, sem inferir pagamento.
+- Próximo backlog verificável: PDDE, PNATE, Obras e indicadores anuais, cada qual como recurso
+  independente; não ampliar antes de homologar grão, licença e reconciliação.
 
 ## Ordem de execução
 

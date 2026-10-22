@@ -14,15 +14,6 @@ from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 import httpx
-from lente_api.models import (
-    Dataset,
-    EducationEnrollment,
-    EducationMetric,
-    PublicationRelease,
-    School,
-    SchoolVersion,
-    SourceSnapshot,
-)
 from openpyxl import load_workbook
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -33,6 +24,15 @@ from ingestion.adapters.base import (
     FetchedPayload,
     SourceAdapter,
     SourceValidationError,
+)
+from lente_api.models import (
+    Dataset,
+    EducationEnrollment,
+    EducationMetric,
+    PublicationRelease,
+    School,
+    SchoolVersion,
+    SourceSnapshot,
 )
 
 CENSO_2024_URL = "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip"

@@ -204,3 +204,26 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   certificado local (`CERTIFICATE_VERIFY_FAILED`). Os mesmos artefatos oficiais, baixados e
   conferidos fora do container, foram processados integralmente. O conector não desabilita a
   validação TLS; a imagem de implantação precisa receber a cadeia de CA compatível.
+
+## Extensão da Etapa 3A — Saeb e FNDE/PNAE — 21/10/2026
+
+- Saeb 2023: RAR oficial de 8.413.247 bytes, SHA-256
+  `acf3066b192298574a4a7ceaacd83b46d05193062077dcc66ffdb0da6f61b113`; o XLSB municipal possui
+  69.053 registros e 113 colunas. Foram selecionadas 60 métricas reais para Campinas, Ribeirão
+  Preto e São Paulo.
+- PNAE 2024: XLSX oficial de 920.689 bytes, SHA-256
+  `fc5eecb6d23bddf186301105a66c1f134c9892150e2889641f8f9a41ff194c5c`; foram selecionadas 36
+  métricas reais para os três municípios. Em Ribeirão Preto, os seis valores previstos somam
+  R$ 7.680.903,13; o portal não os apresenta como pagamentos ou execução.
+- Banco descartável: migração `0001 → 0007`, ciclo `0007 → 0006 → 0007` e importação do catálogo
+  aprovados. Saeb publicou 18 métricas e PNAE 12 para Ribeirão Preto; repetir cada snapshot não
+  alterou as contagens.
+- API: os filtros por dataset de Saeb e PNAE e o resumo educacional combinado responderam 200,
+  sempre com release, URL e proveniência. O dashboard separa Censo, Ideb, Saeb e PNAE e exibe as
+  ressalvas metodológicas.
+- Validação final: 28 testes backend aprovados em PostgreSQL limpo, Ruff aprovado em 39 arquivos,
+  teste de conteúdo aprovado e build de produção Next.js concluído com 23 rotas.
+- PDDE, PNATE e Obras permanecem em revisão manual; nenhum endpoint ou número foi presumido.
+- Limitação ambiental preservada: PNAE respondeu no container, mas o host do INEP falhou por
+  cadeia de certificado local. O RAR verificado no host foi processado pelo mesmo parser no
+  container, com TLS obrigatório no conector.

@@ -36,6 +36,8 @@ HOMOLOGATED_DATASET_LINKS = {
     "LNT-0093": "siconfi_rreo",
     "LNT-0007": "inep_censo_escolar",
     "LNT-0009": "inep_ideb_municipal",
+    "LNT-0010": "inep_saeb_municipal",
+    "LNT-0081": "fnde_pnae_municipal",
 }
 ALLOWED_FORMATS = {
     "api",

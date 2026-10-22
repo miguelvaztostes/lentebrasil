@@ -6,6 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes libarchive-tools \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY apps/api/pyproject.toml /app/apps/api/pyproject.toml
 RUN pip install --no-cache-dir '/app/apps/api[dev]'
 

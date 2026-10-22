@@ -20,6 +20,11 @@ from lente_api.models import (
 
 router = APIRouter(prefix="/api/v1/education", tags=["education"])
 DbSession = Annotated[Session, Depends(get_db)]
+METRIC_DATASETS = (
+    "inep_ideb_municipal",
+    "inep_saeb_municipal",
+    "fnde_pnae_municipal",
+)
 
 
 def _published_release(db: Session, dataset_code: str) -> tuple[Dataset, PublicationRelease] | None:
@@ -46,6 +51,13 @@ def _source(db: Session, dataset: Dataset, release: PublicationRelease) -> dict[
         "published_at": release.published_at,
         "provenance": release.provenance,
     }
+
+
+def _published_metric_releases(
+    db: Session, dataset_code: str | None = None
+) -> list[tuple[Dataset, PublicationRelease]]:
+    codes = (dataset_code,) if dataset_code else METRIC_DATASETS
+    return [current for code in codes if (current := _published_release(db, code)) is not None]
 
 
 @router.get("/schools")
@@ -166,14 +178,24 @@ def metrics(
     stage: str | None = None,
     network: str | None = None,
     indicator: str | None = None,
+    dataset: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    current = _published_release(db, "inep_ideb_municipal")
-    if current is None:
-        return {"items": [], "count": 0, "limit": limit, "offset": offset, "source": None}
-    dataset, release = current
-    statement = select(EducationMetric).where(EducationMetric.release_id == release.id)
+    if dataset is not None and dataset not in METRIC_DATASETS:
+        raise HTTPException(400, "Dataset educacional de métricas inválido")
+    currents = _published_metric_releases(db, dataset)
+    if not currents:
+        return {
+            "items": [],
+            "count": 0,
+            "limit": limit,
+            "offset": offset,
+            "source": None,
+            "sources": [],
+        }
+    release_datasets = {release.id: current_dataset for current_dataset, release in currents}
+    statement = select(EducationMetric).where(EducationMetric.release_id.in_(release_datasets))
     for column, value in (
         (EducationMetric.municipality_ibge_code, municipality),
         (EducationMetric.reference_year, year),
@@ -203,13 +225,15 @@ def metrics(
                 "stage": row.stage_code,
                 "value": row.value,
                 "availability_status": row.availability_status,
+                "dataset": release_datasets[row.release_id].code,
             }
             for row in rows
         ],
         "count": count,
         "limit": limit,
         "offset": offset,
-        "source": _source(db, dataset, release),
+        "source": (_source(db, currents[0][0], currents[0][1]) if len(currents) == 1 else None),
+        "sources": [_source(db, item_dataset, release) for item_dataset, release in currents],
     }
 
 
@@ -221,7 +245,7 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
     if municipality is None:
         raise HTTPException(404, "Município não encontrado")
     censo = _published_release(db, "inep_censo_escolar")
-    ideb = _published_release(db, "inep_ideb_municipal")
+    metric_releases = _published_metric_releases(db)
     school_count = 0
     enrollment_total = None
     schools_source = None
@@ -246,9 +270,8 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
         )
         schools_source = _source(db, dataset, release)
     metric_items: list[dict[str, Any]] = []
-    metrics_source = None
-    if ideb:
-        dataset, release = ideb
+    metric_sources: dict[str, Any] = {}
+    for dataset, release in metric_releases:
         rows = db.scalars(
             select(EducationMetric)
             .where(
@@ -257,7 +280,7 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
             )
             .order_by(EducationMetric.metric_code, EducationMetric.network_code)
         ).all()
-        metric_items = [
+        metric_items.extend(
             {
                 "year": row.reference_year,
                 "indicator": row.metric_code,
@@ -265,10 +288,11 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
                 "stage": row.stage_code,
                 "value": row.value,
                 "availability_status": row.availability_status,
+                "dataset": dataset.code,
             }
             for row in rows
-        ]
-        metrics_source = _source(db, dataset, release)
+        )
+        metric_sources[dataset.code] = _source(db, dataset, release)
     return {
         "municipality": {
             "ibge_code": municipality.ibge_code,
@@ -278,5 +302,11 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
         "school_count": school_count,
         "enrollment_total": enrollment_total,
         "metrics": metric_items,
-        "sources": {"schools": schools_source, "metrics": metrics_source},
+        "sources": {
+            "schools": schools_source,
+            "metrics": metric_sources.get("inep_ideb_municipal"),
+            "ideb": metric_sources.get("inep_ideb_municipal"),
+            "saeb": metric_sources.get("inep_saeb_municipal"),
+            "fnde_pnae": metric_sources.get("fnde_pnae_municipal"),
+        },
     }

@@ -6,11 +6,10 @@ import os
 import time
 from pathlib import Path
 
-from lente_api.database import SessionLocal
-from lente_api.settings import get_settings
-
 from ingestion.factory import LEGACY_MUNICIPALITY
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
+from lente_api.database import SessionLocal
+from lente_api.settings import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("lente.ingestion")
@@ -26,9 +25,7 @@ def seed_recurring_jobs() -> None:
         for item in os.environ.get("INGESTION_SOURCES", "ibge,siconfi,cnes").split(",")
         if item.strip()
     ]
-    recurring_seconds = max(
-        3600, int(os.environ.get("INGESTION_INTERVAL_SECONDS", "86400"))
-    )
+    recurring_seconds = max(3600, int(os.environ.get("INGESTION_INTERVAL_SECONDS", "86400")))
     start_year = int(os.environ.get("SICONFI_START_YEAR", "2022"))
     end_year = int(os.environ.get("SICONFI_END_YEAR", "2025"))
     with SessionLocal() as db:
@@ -66,9 +63,7 @@ def cycle(*, max_jobs: int = 10) -> int:
             if job is None:
                 return processed
             try:
-                result = execute_job(
-                    db, job, raw_data_dir=Path(get_settings().raw_data_dir)
-                )
+                result = execute_job(db, job, raw_data_dir=Path(get_settings().raw_data_dir))
                 emit("ingestion_completed", **result)
             except Exception as exc:  # noqa: BLE001 - one job cannot block the queue
                 emit("ingestion_failed", job_key=job.job_key, error=str(exc)[:1000])

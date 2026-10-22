@@ -137,6 +137,7 @@ export type EducationMetric = {
   stage: string;
   value: string | number | null;
   availability_status: string;
+  dataset?: string;
 };
 
 export type EducationMunicipality = {
@@ -144,7 +145,13 @@ export type EducationMunicipality = {
   school_count: number;
   enrollment_total: number | null;
   metrics: EducationMetric[];
-  sources: { schools: EducationSource | null; metrics: EducationSource | null };
+  sources: {
+    schools: EducationSource | null;
+    metrics: EducationSource | null;
+    ideb?: EducationSource | null;
+    saeb?: EducationSource | null;
+    fnde_pnae?: EducationSource | null;
+  };
 };
 
 export type SchoolDetailResponse = {

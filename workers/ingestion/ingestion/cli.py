@@ -5,14 +5,14 @@ from dataclasses import asdict
 from pathlib import Path
 
 import typer
-from lente_api.database import SessionLocal
-from lente_api.settings import get_settings
 
 from ingestion.adapters import ADAPTERS
 from ingestion.adapters.education import rollback_education_release
 from ingestion.factory import build_adapter, select_municipalities
 from ingestion.geography import sync_official_geographies
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
+from lente_api.database import SessionLocal
+from lente_api.settings import get_settings
 
 app = typer.Typer(help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True)
 
@@ -58,7 +58,9 @@ def geo_sync() -> None:
 
 @app.command()
 def ingest(
-    source: str = typer.Option(..., help="ibge, siconfi, cnes, censo_escolar, ideb ou all"),
+    source: str = typer.Option(
+        ..., help="ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae ou all"
+    ),
     dry_run: bool = typer.Option(False, help="Coleta e valida sem gravar no banco"),
     municipalities: str | None = typer.Option(
         None,
@@ -117,7 +119,9 @@ def ingest(
 
 @app.command("schedule")
 def schedule(
-    source: str = typer.Option(..., help="ibge, siconfi, cnes, censo_escolar ou ideb"),
+    source: str = typer.Option(
+        ..., help="ibge, siconfi, cnes, censo_escolar, ideb, saeb ou fnde_pnae"
+    ),
     municipalities: str | None = None,
     uf: str | None = None,
     start_year: int | None = None,
@@ -186,7 +190,9 @@ def work_once() -> None:
 
 @app.command()
 def health(
-    source: str = typer.Option("all", help="ibge, siconfi, cnes, censo_escolar, ideb ou all"),
+    source: str = typer.Option(
+        "all", help="ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae ou all"
+    ),
     municipalities: str | None = None,
 ) -> None:
     selected = list(ADAPTERS) if source == "all" else [source]
@@ -207,10 +213,20 @@ def health(
 
 @app.command("education-rollback")
 def education_rollback(
-    dataset: str = typer.Option(..., help="inep_censo_escolar ou inep_ideb_municipal"),
+    dataset: str = typer.Option(
+        ...,
+        help=(
+            "inep_censo_escolar, inep_ideb_municipal, inep_saeb_municipal ou fnde_pnae_municipal"
+        ),
+    ),
     release: str = typer.Option(..., help="Chave exata do release publicado"),
 ) -> None:
-    if dataset not in {"inep_censo_escolar", "inep_ideb_municipal"}:
+    if dataset not in {
+        "inep_censo_escolar",
+        "inep_ideb_municipal",
+        "inep_saeb_municipal",
+        "fnde_pnae_municipal",
+    }:
         raise typer.BadParameter("Dataset educacional inválido")
     with SessionLocal() as db:
         restored = rollback_education_release(db, dataset, release)

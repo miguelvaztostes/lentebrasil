@@ -62,17 +62,12 @@ class SiconfiRreoAdapter(SourceAdapter):
         self.monotonic_fn = monotonic_fn
         if not self.municipality_codes or not self.years:
             raise ValueError("Municípios e exercícios são obrigatórios")
-        if any(
-            len(code) != 7 or not code.isdigit() for code in self.municipality_codes
-        ):
+        if any(len(code) != 7 or not code.isdigit() for code in self.municipality_codes):
             raise ValueError("Códigos IBGE municipais devem ter sete dígitos")
         if any(period < 1 or period > 6 for period in self.periods):
             raise ValueError("Período RREO deve estar entre 1 e 6")
         planned = (
-            len(self.municipality_codes)
-            * len(self.years)
-            * len(self.periods)
-            * len(self.annexes)
+            len(self.municipality_codes) * len(self.years) * len(self.periods) * len(self.annexes)
         )
         if planned > self.max_requests:
             raise ValueError(
@@ -91,9 +86,7 @@ class SiconfiRreoAdapter(SourceAdapter):
         return f"{self.base_url}?{urlencode(params)}"
 
     def discover(self) -> dict[str, Any]:
-        response = self.get(
-            "https://apidatalake.tesouro.gov.br/docs/siconfi.yaml", timeout=30
-        )
+        response = self.get("https://apidatalake.tesouro.gov.br/docs/siconfi.yaml", timeout=30)
         body = response.text
         if "/rreo:" not in body or 'name: "id_ente"' not in body:
             raise SourceValidationError(
@@ -133,9 +126,7 @@ class SiconfiRreoAdapter(SourceAdapter):
                                 fetched_at=datetime.now(UTC),
                                 original_format="json",
                                 response_headers=self.selected_headers(response),
-                                published_at=self.header_datetime(
-                                    response, "last-modified"
-                                ),
+                                published_at=self.header_datetime(response, "last-modified"),
                                 persist_raw=True,
                                 resource_version=response.headers.get("etag")
                                 or response.headers.get("last-modified"),
@@ -152,9 +143,7 @@ class SiconfiRreoAdapter(SourceAdapter):
             ) from exc
         items = envelope.get("items") if isinstance(envelope, dict) else None
         if not isinstance(items, list) or not items:
-            raise SourceValidationError(
-                "Resposta Siconfi sem itens", code="empty_payload"
-            )
+            raise SourceValidationError("Resposta Siconfi sem itens", code="empty_payload")
         records: list[ObservationRecord] = []
         for row in items:
             key = (row.get("cod_conta"), row.get("coluna"))
@@ -201,9 +190,7 @@ class SiconfiRreoAdapter(SourceAdapter):
                     period_end=date(year, 12, 31),
                     value=value,
                     scope=scope,
-                    availability_status="available"
-                    if value is not None
-                    else "unavailable",
+                    availability_status="available" if value is not None else "unavailable",
                     source_reference_at=payload.published_at,
                 )
             )
@@ -223,8 +210,7 @@ class SiconfiRreoAdapter(SourceAdapter):
                 },
             )
         identities = {
-            (record.municipality_ibge_code, record.period_start.year)
-            for record in records
+            (record.municipality_ibge_code, record.period_start.year) for record in records
         }
         if len(identities) != 1:
             raise SourceValidationError(

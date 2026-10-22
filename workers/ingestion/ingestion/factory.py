@@ -4,14 +4,19 @@ import os
 from pathlib import Path
 from typing import Any
 
-from lente_api.models import GeoCodeMapping, GeoUnit, Municipality
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ingestion.adapters.cnes import CnesAdapter
 from ingestion.adapters.education import InepCensoEscolarAdapter, InepIdebAdapter
+from ingestion.adapters.federal_education import (
+    FndePnaeAdapter,
+    InepSaebAdapter,
+    normalize_fnde_municipality_name,
+)
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
+from lente_api.models import GeoCodeMapping, GeoUnit, Municipality
 
 LEGACY_MUNICIPALITY = "3543402"
 
@@ -110,4 +115,19 @@ def build_adapter(
         if start_year not in {None, 2025} or end_year not in {None, 2025}:
             raise ValueError("Apenas o pacote homologado do Ideb 2025 está disponível")
         return InepIdebAdapter(raw_data_dir=raw_data_dir, selected_municipalities=set(codes))
+    if source == "saeb":
+        if start_year not in {None, 2023} or end_year not in {None, 2023}:
+            raise ValueError("Apenas o pacote homologado do Saeb 2023 está disponível")
+        return InepSaebAdapter(raw_data_dir=raw_data_dir, selected_municipalities=set(codes))
+    if source == "fnde_pnae":
+        if start_year not in {None, 2024} or end_year not in {None, 2024}:
+            raise ValueError("Apenas a planilha homologada do PNAE 2024 está disponível")
+        return FndePnaeAdapter(
+            raw_data_dir=raw_data_dir,
+            selected_municipalities=set(codes),
+            municipality_names={
+                (item.state, normalize_fnde_municipality_name(item.name)): item.ibge_code
+                for item in municipalities
+            },
+        )
     raise ValueError(f"Fonte desconhecida: {source}")

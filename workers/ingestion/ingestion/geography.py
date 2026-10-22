@@ -7,16 +7,14 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from lente_api.models import GeoCodeMapping, GeoUnit, GeoUnitVersion, Municipality
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ingestion.adapters.base import SourceAdapter, SourceValidationError
+from lente_api.models import GeoCodeMapping, GeoUnit, GeoUnitVersion, Municipality
 
 UF_URL = "https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome"
-MUNICIPALITIES_URL = (
-    "https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome"
-)
+MUNICIPALITIES_URL = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome"
 
 
 @dataclass(slots=True)
@@ -36,9 +34,7 @@ def _municipality_uf(row: dict[str, Any]) -> str | None:
     return (intermediate.get("UF") or meso.get("UF") or {}).get("sigla")
 
 
-def fetch_official_geographies() -> tuple[
-    list[dict[str, Any]], list[dict[str, Any]], str
-]:
+def fetch_official_geographies() -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
     states_response = SourceAdapter.get(UF_URL, timeout=60)
     municipalities_response = SourceAdapter.get(MUNICIPALITIES_URL, timeout=180)
     states = states_response.json()
@@ -47,9 +43,7 @@ def fetch_official_geographies() -> tuple[
         raise SourceValidationError(
             "API de Localidades retornou estrutura inválida", code="schema_drift"
         )
-    digest = hashlib.sha256(
-        states_response.content + municipalities_response.content
-    ).hexdigest()
+    digest = hashlib.sha256(states_response.content + municipalities_response.content).hexdigest()
     return states, municipalities, digest
 
 
@@ -62,9 +56,7 @@ def sync_geographies(
     effective_from: date | None = None,
 ) -> GeographySyncSummary:
     effective_from = effective_from or datetime.now(UTC).date()
-    country = db.scalar(
-        select(GeoUnit).where(GeoUnit.unit_type == "country", GeoUnit.code == "BR")
-    )
+    country = db.scalar(select(GeoUnit).where(GeoUnit.unit_type == "country", GeoUnit.code == "BR"))
     if country is None:
         country = GeoUnit(
             id=uuid.uuid4(),
@@ -81,12 +73,8 @@ def sync_geographies(
         uf = str(row.get("sigla", "")).upper()
         name = str(row.get("nome", "")).strip()
         if len(uf) != 2 or not name:
-            raise SourceValidationError(
-                "UF inválida na API de Localidades", details={"row": row}
-            )
-        unit = db.scalar(
-            select(GeoUnit).where(GeoUnit.unit_type == "state", GeoUnit.code == uf)
-        )
+            raise SourceValidationError("UF inválida na API de Localidades", details={"row": row})
+        unit = db.scalar(select(GeoUnit).where(GeoUnit.unit_type == "state", GeoUnit.code == uf))
         if unit is None:
             unit = GeoUnit(
                 id=uuid.uuid4(),
@@ -129,9 +117,7 @@ def sync_geographies(
             municipal.state = uf
 
         unit = db.scalar(
-            select(GeoUnit).where(
-                GeoUnit.unit_type == "municipality", GeoUnit.code == code
-            )
+            select(GeoUnit).where(GeoUnit.unit_type == "municipality", GeoUnit.code == code)
         )
         if unit is None:
             unit = GeoUnit(
@@ -225,9 +211,7 @@ def sync_geographies(
                 )
 
     deactivated = 0
-    existing = db.scalars(
-        select(GeoUnit).where(GeoUnit.unit_type == "municipality")
-    ).all()
+    existing = db.scalars(select(GeoUnit).where(GeoUnit.unit_type == "municipality")).all()
     for unit in existing:
         if unit.code not in received_codes and unit.active:
             unit.active = False
@@ -282,7 +266,5 @@ def crosswalk_for_municipalities(
 def geography_payload_hash(
     states: list[dict[str, Any]], municipalities: list[dict[str, Any]]
 ) -> str:
-    body = json.dumps(
-        [states, municipalities], ensure_ascii=False, sort_keys=True
-    ).encode()
+    body = json.dumps([states, municipalities], ensure_ascii=False, sort_keys=True).encode()
     return hashlib.sha256(body).hexdigest()

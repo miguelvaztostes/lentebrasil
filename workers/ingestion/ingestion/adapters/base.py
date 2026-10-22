@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -12,14 +13,6 @@ from typing import Any
 
 import httpx
 from dateutil.parser import parse as parse_datetime
-from lente_api.models import (
-    DataQualityIssue,
-    Dataset,
-    Indicator,
-    IngestionRun,
-    Observation,
-    SourceSnapshot,
-)
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 from tenacity import (
@@ -27,6 +20,15 @@ from tenacity import (
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
+)
+
+from lente_api.models import (
+    DataQualityIssue,
+    Dataset,
+    Indicator,
+    IngestionRun,
+    Observation,
+    SourceSnapshot,
 )
 
 USER_AGENT = "LenteRibeirao/0.1 (+observatorio civico; contato pendente)"
@@ -311,7 +313,8 @@ class SourceAdapter(ABC):
             directory = self.raw_data_dir / self.dataset_code
             directory.mkdir(parents=True, exist_ok=True)
             suffix = {"json": "json", "csv.zip": "zip"}.get(
-                payload.original_format, payload.original_format.replace(".", "_")
+                payload.original_format,
+                re.sub(r"[^a-zA-Z0-9_-]", "_", payload.original_format),
             )
             filename = f"{payload.fetched_at:%Y%m%dT%H%M%SZ}-{payload.sha256[:16]}.{suffix}"
             path = directory / filename

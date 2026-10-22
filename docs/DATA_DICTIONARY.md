@@ -34,11 +34,14 @@
 | `schools` | escola Inep | Identidade estável e município atual observado. |
 | `school_versions` | escola/ano/release | Nome, município, situação, dependência, localização e infraestrutura declarada; histórico não é sobrescrito. |
 | `education_enrollments` | escola/ano/etapa/release | Total agregado ou `NULL` com estado de disponibilidade. |
-| `education_metrics` | município/ano/indicador/rede/etapa/release | Ideb, rendimento e componentes Saeb exatamente como publicados, inclusive supressão. |
+| `education_metrics` | município/ano/indicador/rede/etapa/release | Ideb, rendimento e componentes Saeb; médias agregadas Saeb 2023; alunos considerados e valores previstos PNAE 2024, exatamente como publicados, inclusive supressão. |
 | `education_networks`, `education_dependencies`, `education_stages` | dimensão | Vocabulários explícitos; rede pública agregada não é confundida com dependência administrativa. |
 
 Os fatos educacionais só são consultados quando seu `publication_releases.status` é `published`.
 Não há tabela de aluno ou profissional, nem armazenamento de contatos/endereço/CNPJ escolar.
+As métricas PNAE usam os códigos de ação como etapa técnica. Categorias podem se sobrepor (por
+exemplo, AEE), portanto quantidades de alunos não devem ser somadas como pessoas únicas. Valores
+financeiros são previsão de repasse, não pagamento nem despesa executada.
 
 ## Indicadores e observações
 

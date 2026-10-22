@@ -21,13 +21,15 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
 - Coleta real da população estimada pelo IBGE/SIDRA.
 - Coleta real do RREO/Siconfi, preservando receita, empenho, liquidação e pagamento.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
+- Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
+  preservando supressões e distinguindo previsão de transferência de execução financeira.
 - Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
   municípios, crosswalks explícitos e histórico cadastral.
 - Jobs persistidos no PostgreSQL com lock, checkpoint, retomada, retry e backfill por janela.
 - CSV por indicador, status público dos pipelines, health/readiness e logs estruturados.
 - Docker Compose, Caddy opcional, testes e CI.
 
-O IDEB está marcado como importação supervisionada até que o arquivo estruturado e todas as dimensões sejam validados. A transparência municipal não revelou um download tabular na auditoria inicial; o primeiro recorte fiscal usa o Siconfi.
+A transparência municipal não revelou um download tabular na auditoria inicial; o primeiro recorte fiscal usa o Siconfi.
 
 ## Requisitos
 
@@ -60,6 +62,8 @@ Validar sem gravar:
 docker compose run --rm ingestion python -m ingestion.cli ingest --source ibge --dry-run
 docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi --dry-run
 docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes --dry-run
+docker compose run --rm ingestion python -m ingestion.cli ingest --source saeb --dry-run
+docker compose run --rm ingestion python -m ingestion.cli ingest --source fnde_pnae --dry-run
 ```
 
 Coletar e persistir:
@@ -119,7 +123,8 @@ Principais rotas:
 - `GET /api/v1/exports/observations.csv?indicator=population_estimated`
 - `GET /api/v1/pipelines/status`
 - `GET /api/v1/education/schools?municipality=3543402&network=municipal`
-- `GET /api/v1/education/metrics?municipality=3543402&indicator=ideb`
+- `GET /api/v1/education/metrics?municipality=3543402&dataset=inep_saeb_municipal`
+- `GET /api/v1/education/metrics?municipality=3543402&dataset=fnde_pnae_municipal`
 - `GET /api/v1/education/municipalities/{ibge_code}`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
@@ -184,7 +189,7 @@ Uma VM com 2 vCPU, 4 GB de RAM e SSD é o ponto de partida recomendado; medir an
 - **Fonte caiu:** o job registra falha sem apagar o último dado validado; a API e o frontend continuam disponíveis.
 - **CNES mudou o cabeçalho:** a carga é bloqueada como `schema_drift`; revise o adaptador antes de aceitar a nova versão.
 - **Siconfi retorna vazio:** confirme exercício, 6º bimestre e homologação. Não troque automaticamente por outro período.
-- **Ideb/Censo Escolar não aparecem:** confira se os releases educacionais foram publicados pelo
+- **Dados educacionais não aparecem:** confira se os releases educacionais foram publicados pelo
   worker. Falha de certificado no container deve ser corrigida instalando a cadeia de CA do
   ambiente; nunca desabilite a validação TLS.
 
@@ -195,4 +200,4 @@ Uma VM com 2 vCPU, 4 GB de RAM e SSD é o ponto de partida recomendado; medir an
 - `docs/DATA_DICTIONARY.md`: modelo, indicadores e regras de qualidade.
 - `docs/NACIONALIZACAO_BASELINE.md`: auditoria e baseline anteriores à fundação nacional.
 - `docs/CATALOGO_NACIONAL.md`: schema, estados, importação, segurança e manutenção.
-- `docs/EDUCATION_SOURCES.md`: artefatos homologados, decisões LNT, privacidade e evidências da Onda 3A.
+- `docs/EDUCATION_SOURCES.md`: artefatos homologados, decisões LNT, privacidade e evidências do módulo educacional.

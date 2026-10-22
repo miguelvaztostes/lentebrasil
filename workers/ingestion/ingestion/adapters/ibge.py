@@ -48,7 +48,9 @@ class IbgePopulationAdapter(SourceAdapter):
 
     def _url(self, codes: list[str]) -> str:
         municipalities = ",".join(codes)
-        return f"{self.sidra_base_url}/n6/{municipalities}/v/9324/p/{self._period_path()}?formato=json"
+        return (
+            f"{self.sidra_base_url}/n6/{municipalities}/v/9324/p/{self._period_path()}?formato=json"
+        )
 
     def discover(self) -> dict[str, Any]:
         return {
@@ -89,9 +91,7 @@ class IbgePopulationAdapter(SourceAdapter):
                 "Resposta SIDRA não é JSON válido", code="invalid_json"
             ) from exc
         if not isinstance(rows, list) or len(rows) < 2:
-            raise SourceValidationError(
-                "Resposta SIDRA sem observações", code="empty_payload"
-            )
+            raise SourceValidationError("Resposta SIDRA sem observações", code="empty_payload")
         required = {"V", "D1C", "D2C", "D3C", "MN"}
         if not required.issubset(rows[0]):
             raise SourceValidationError(
@@ -102,10 +102,7 @@ class IbgePopulationAdapter(SourceAdapter):
         records: list[ObservationRecord] = []
         for row in rows[1:]:
             municipality_code = str(row.get("D1C"))
-            if (
-                municipality_code not in self.geographies
-                or str(row.get("D2C")) != "9324"
-            ):
+            if municipality_code not in self.geographies or str(row.get("D2C")) != "9324":
                 raise SourceValidationError(
                     "Linha SIDRA fora do lote solicitado",
                     code="domain_mismatch",
@@ -115,10 +112,7 @@ class IbgePopulationAdapter(SourceAdapter):
                     },
                 )
             year = int(row["D3C"])
-            if (
-                self.period_range
-                and not self.period_range[0] <= year <= self.period_range[1]
-            ):
+            if self.period_range and not self.period_range[0] <= year <= self.period_range[1]:
                 raise SourceValidationError(
                     "Linha SIDRA fora do período solicitado",
                     code="period_mismatch",
@@ -126,9 +120,7 @@ class IbgePopulationAdapter(SourceAdapter):
                 )
             raw_value = str(row.get("V", "")).strip()
             try:
-                value = (
-                    Decimal(raw_value) if raw_value not in {"", "...", "-"} else None
-                )
+                value = Decimal(raw_value) if raw_value not in {"", "...", "-"} else None
             except InvalidOperation as exc:
                 raise SourceValidationError(
                     "Valor populacional inválido",
@@ -143,9 +135,7 @@ class IbgePopulationAdapter(SourceAdapter):
                     period_end=date(year, 12, 31),
                     value=value,
                     scope={"resource_version": self.resource_version},
-                    availability_status="available"
-                    if value is not None
-                    else "unavailable",
+                    availability_status="available" if value is not None else "unavailable",
                     source_reference_at=payload.published_at,
                 )
             )
@@ -156,19 +146,14 @@ class IbgePopulationAdapter(SourceAdapter):
             raise SourceValidationError(
                 "Nenhuma estimativa populacional recebida", code="empty_dataset"
             )
-        keys = [
-            (record.municipality_ibge_code, record.period_start.year)
-            for record in records
-        ]
+        keys = [(record.municipality_ibge_code, record.period_start.year) for record in records]
         if len(keys) != len(set(keys)):
             raise SourceValidationError(
                 "Município/ano duplicado na resposta SIDRA", code="duplicate_period"
             )
         for record in records:
             if record.municipality_ibge_code not in self.geographies:
-                raise SourceValidationError(
-                    "Município inesperado", code="domain_mismatch"
-                )
+                raise SourceValidationError("Município inesperado", code="domain_mismatch")
             if record.value is not None and record.value <= 0:
                 raise SourceValidationError(
                     "População deve ser positiva",

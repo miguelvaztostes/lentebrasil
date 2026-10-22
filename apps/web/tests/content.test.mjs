@@ -23,5 +23,8 @@ test("public disclaimer and empty-data language remain visible", async () => {
   assert.match(search, /Fonte descoberta, integração técnica e dado publicado/);
   assert.match(education, /nunca são convertidos em zero/);
   assert.match(education, /education\/municipalities/);
+  assert.match(education, /Saeb 2023/);
+  assert.match(education, /PNAE 2024/);
+  assert.match(education, /Não representa pagamento realizado/);
   assert.match(school, /não armazena endereço, telefone, CNPJ nem dados individuais/);
 });

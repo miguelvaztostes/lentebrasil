@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0006"
