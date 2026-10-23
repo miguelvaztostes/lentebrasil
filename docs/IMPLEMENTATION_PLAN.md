@@ -103,11 +103,13 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
   ligado ao snapshot e ao documento oficial.
 - SIM 2024 processado em streaming e publicado apenas como agregados por residência. Causa e
   idade não são cruzadas; células de 1 a 4 são suprimidas e o microdado temporário é removido.
+- Hospitais/leitos CNES de setembro de 2026 e nascidos vivos SINASC 2024 foram homologados em
+  arquivos oficiais, carregados com versão/hash e reconciliados em três municípios.
 - API e página `/municipios/[ibgeCode]/saude` distinguem cadastro CNES, capacidade cadastrada,
   produção assistencial, mortalidade e gasto municipal; ausência nunca aparece como zero.
-- SIA/SUS, SIH/SUS, expansão CNES, SINASC, SISAB, SIOPS, ANS e epidemiologia adicional seguem
+- SIA/SUS, SIH/SUS, serviços CNES, SISAB, SIOPS, ANS e epidemiologia adicional seguem
   como candidatos até que recurso, schema, direito, período e semântica sejam homologados.
-- Próximo passo: homologar um release de leitos/serviços CNES e somente depois SIA/SIH agregados,
+- Próximo passo: homologar serviços CNES e somente depois SIA/SIH agregados,
   com três amostras por conjunto e reconciliação contra o portal oficial.
 
 ## Etapa 3B — transparência e contratações

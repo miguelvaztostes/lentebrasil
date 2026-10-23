@@ -24,6 +24,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   receitas TCE-SP/Audesp por rubrica e despesas mensais agregadas por fase, sem consolidação
   indevida entre fontes e sem persistir dados de fornecedores da API de despesas.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
+- Saúde municipal com hospitais/leitos CNES, mortalidade SIM e nascidos vivos SINASC, mantendo
+  microdados fora da base publicada e distinguindo cadastro, capacidade e eventos vitais.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
   preservando supressões e distinguindo previsão de transferência de execução financeira.
 - Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
@@ -73,6 +75,8 @@ docker compose run --rm ingestion python -m ingestion.cli ingest --source siconf
 docker compose run --rm ingestion python -m ingestion.cli ingest --source siconfi_dca --dry-run --municipalities 3543402 --start-year 2024 --annexes "DCA-Anexo I-AB"
 docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_revenues --dry-run --municipalities 3543402 --start-year 2025
 docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_expenses --dry-run --municipalities 3543402 --start-year 2025 --periods 1 --max-requests 1
+docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes_beds --dry-run --municipalities 3543402
+docker compose run --rm ingestion python -m ingestion.cli ingest --source sinasc_births --dry-run --municipalities 3543402 --start-year 2024 --end-year 2024
 ```
 
 Coletar e persistir:
@@ -145,6 +149,7 @@ Principais rotas:
 - `GET /api/v1/health/overview?municipality=3543402&year=2024`
 - `GET /api/v1/health/epidemiology?municipality=3543402&year=2024`
 - `GET /api/v1/health/establishments?municipality=3543402`
+- `GET /api/v1/health/beds?municipality=3543402&active=true`
 - `GET /api/v1/health/production?municipality=3543402&year=2024`
 - `GET /api/v1/health/exports/epidemiology.csv?municipality=3543402&year=2024`
 
@@ -152,11 +157,16 @@ Listagens têm limites validados. A exportação inclui hash e URL do snapshot. 
 O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando
 Ribeirão Preto quando o parâmetro é omitido.
 
-O conector `sim_mortality` publica somente agregados municipais seguros e não persiste o
-microdado. Auditoria, direitos, cobertura e limitações estão em `docs/HEALTH_SOURCES.md`.
-Ele não integra a carga padrão da demo porque o ZIP anual tem cerca de 98 MB; a execução
-controlada usa `python -m ingestion.cli ingest --source sim_mortality --municipalities 3543402
---start-year 2024 --end-year 2024` dentro do container de API/ingestão.
+Os conectores `sim_mortality` e `sinasc_births` publicam somente agregados municipais seguros e
+não persistem microdados. Auditoria, direitos, cobertura e limitações estão em
+`docs/HEALTH_SOURCES.md`. Eles não integram a carga padrão da demo porque os ZIPs anuais têm
+cerca de 98 MB e 92 MB. A execução controlada usa o comando abaixo, trocando a fonte por
+`sinasc_births` para nascidos vivos:
+
+```bash
+python -m ingestion.cli ingest --source sim_mortality --municipalities 3543402 \
+  --start-year 2024 --end-year 2024
+```
 
 ## Testes
 

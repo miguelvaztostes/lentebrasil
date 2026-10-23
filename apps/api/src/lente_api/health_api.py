@@ -119,6 +119,7 @@ def epidemiology(
     db: DbSession,
     municipality: str = Query(..., pattern=r"^\d{7}$"),
     year: int | None = Query(None, ge=1979, le=2100),
+    indicator: str | None = Query(None, max_length=80),
     category: str | None = Query(None, max_length=80),
     age_band: str | None = Query(None, max_length=40),
     limit: int = Query(100, ge=1, le=500),
@@ -130,6 +131,8 @@ def epidemiology(
     )
     if year is not None:
         statement = statement.where(func.extract("year", HealthEpidemiology.period_start) == year)
+    if indicator is not None:
+        statement = statement.where(HealthEpidemiology.indicator_code == indicator)
     if category is not None:
         statement = statement.where(HealthEpidemiology.category_code == category)
     if age_band is not None:
@@ -152,8 +155,9 @@ def epidemiology(
         "limit": limit,
         "offset": offset,
         "methodology": (
-            "Óbitos não fetais agregados pelo município de residência. Categorias são capítulos "
-            "CID-10; faixas etárias são publicadas separadamente, sem cruzamento com causa."
+            "Eventos agregados pelo município de residência. No SIM, categorias são capítulos "
+            "CID-10 e faixas etárias são publicadas separadamente; no SINASC, publica-se o total "
+            "anual de nascidos vivos."
         ),
         "privacy": "Contagens de 1 a 4 são suprimidas e armazenadas como NULL.",
     }
@@ -260,6 +264,80 @@ def production(
     }
 
 
+@router.get("/beds")
+def beds(
+    db: DbSession,
+    municipality: str = Query(..., pattern=r"^\d{7}$"),
+    facility_type: str | None = Query(None, max_length=40),
+    sus_linked: bool | None = None,
+    active: bool | None = True,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    _require_municipality(db, municipality)
+    establishments = _current(HealthEstablishment).where(
+        HealthEstablishment.municipality_ibge_code == municipality
+    )
+    if facility_type is not None:
+        establishments = establishments.where(
+            HealthEstablishment.facility_type_code == facility_type
+        )
+    if sus_linked is not None:
+        establishments = establishments.where(HealthEstablishment.sus_linked == sus_linked)
+    if active is not None:
+        establishments = establishments.where(HealthEstablishment.active == active)
+    establishment_rows = establishments.subquery()
+    bed_rows = _current(HealthBed).subquery()
+    statement = (
+        select(
+            establishment_rows.c.cnes_code,
+            establishment_rows.c.name,
+            establishment_rows.c.facility_type_code,
+            establishment_rows.c.facility_type_name,
+            establishment_rows.c.active,
+            establishment_rows.c.source_document_url,
+            bed_rows.c.bed_type_code,
+            bed_rows.c.bed_type_name,
+            bed_rows.c.existing_count,
+            bed_rows.c.sus_count,
+            bed_rows.c.reference_date,
+            bed_rows.c.snapshot_id,
+        )
+        .join(
+            establishment_rows,
+            establishment_rows.c.id == bed_rows.c.establishment_id,
+        )
+        .order_by(establishment_rows.c.name)
+    )
+    count = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+    rows = db.execute(statement.limit(limit).offset(offset)).all()
+    return {
+        "items": [
+            {
+                "cnes_code": row.cnes_code,
+                "establishment": row.name,
+                "facility_type_code": row.facility_type_code,
+                "facility_type_name": row.facility_type_name,
+                "active": row.active,
+                "bed_type_code": row.bed_type_code,
+                "bed_type_name": row.bed_type_name,
+                "registered_beds": row.existing_count,
+                "registered_sus_beds": row.sus_count,
+                "reference_date": row.reference_date,
+                "source": _source(db, row.snapshot_id, row.source_document_url),
+            }
+            for row in rows
+        ],
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "methodology": (
+            "Leitos cadastrados no CNES na competência mais recente homologada; não indicam "
+            "ocupação nem disponibilidade em tempo real."
+        ),
+    }
+
+
 def _number(value: Decimal | None) -> str | None:
     return format(value, "f") if value is not None else None
 
@@ -280,15 +358,33 @@ def overview(
         (
             item
             for item in epidemiology_rows
-            if item.category_code == "all" and item.age_band == "all"
+            if item.indicator_code == "sim_deaths_residence"
+            and item.category_code == "all"
+            and item.age_band == "all"
+        ),
+        None,
+    )
+    live_births = next(
+        (
+            item
+            for item in epidemiology_rows
+            if item.indicator_code == "sinasc_live_births_residence"
         ),
         None,
     )
     causes = [
-        item for item in epidemiology_rows if item.category_code != "all" and item.age_band == "all"
+        item
+        for item in epidemiology_rows
+        if item.indicator_code == "sim_deaths_residence"
+        and item.category_code != "all"
+        and item.age_band == "all"
     ]
     ages = [
-        item for item in epidemiology_rows if item.category_code == "all" and item.age_band != "all"
+        item
+        for item in epidemiology_rows
+        if item.indicator_code == "sim_deaths_residence"
+        and item.category_code == "all"
+        and item.age_band != "all"
     ]
     establishment_statement = _current(HealthEstablishment).where(
         HealthEstablishment.municipality_ibge_code == municipality
@@ -343,7 +439,12 @@ def overview(
         },
         "epidemiology": {
             "total_deaths": None if total_deaths is None else total_deaths.count,
-            "availability": "available" if total_deaths is not None else "unavailable",
+            "live_births": None if live_births is None else live_births.count,
+            "availability": (
+                "available"
+                if total_deaths is not None or live_births is not None
+                else "unavailable"
+            ),
             "causes": [
                 {
                     "code": item.category_code,
@@ -383,7 +484,9 @@ def overview(
         },
         "sources": [
             _dataset_source(db, "cnes_establishments"),
+            _dataset_source(db, "cnes_beds_establishments"),
             _dataset_source(db, "sim_mortality_municipal"),
+            _dataset_source(db, "sinasc_births_municipal"),
         ],
     }
 

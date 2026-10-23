@@ -16,9 +16,9 @@ HEALTH_DECISIONS: dict[str, tuple[str, str]] = {
         "conector separado.",
     ),
     "LNT-0019": (
-        "manual_review",
-        "Rota DEMAS de leitos documentada, porém resposta e schema não puderam ser "
-        "validados neste ambiente.",
+        "integrate",
+        "ZIP/CSV oficial de hospitais e leitos homologado com competência explícita, "
+        "campos institucionais mínimos e descarte de contatos e endereços.",
     ),
     "LNT-0020": (
         "integrate",
@@ -26,9 +26,9 @@ HEALTH_DECISIONS: dict[str, tuple[str, str]] = {
         "limiar de divulgação.",
     ),
     "LNT-0021": (
-        "manual_review",
-        "SINASC possui arquivos oficiais, mas artefato e schema ainda não foram "
-        "homologados nesta etapa.",
+        "integrate",
+        "CSV oficial definitivo SINASC 2024 homologado com agregação por município "
+        "de residência e descarte dos microdados após o processamento.",
     ),
     "LNT-0022": (
         "manual_review",

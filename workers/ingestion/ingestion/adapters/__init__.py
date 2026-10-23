@@ -1,7 +1,11 @@
 from ingestion.adapters.cnes import CnesAdapter
 from ingestion.adapters.education import InepCensoEscolarAdapter, InepIdebAdapter
 from ingestion.adapters.federal_education import FndePnaeAdapter, InepSaebAdapter
-from ingestion.adapters.health import SimMortalityAdapter
+from ingestion.adapters.health import (
+    CnesBedsAdapter,
+    SimMortalityAdapter,
+    SinascBirthsAdapter,
+)
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
 from ingestion.adapters.transparency import (
@@ -27,11 +31,14 @@ ADAPTERS = {
     "siconfi_rgf": SiconfiStatementAdapter,
     "siconfi_dca": SiconfiStatementAdapter,
     "sim_mortality": SimMortalityAdapter,
+    "cnes_beds": CnesBedsAdapter,
+    "sinasc_births": SinascBirthsAdapter,
 }
 
 __all__ = [
     "ADAPTERS",
     "CnesAdapter",
+    "CnesBedsAdapter",
     "FndePnaeAdapter",
     "IbgePopulationAdapter",
     "InepCensoEscolarAdapter",
@@ -42,6 +49,7 @@ __all__ = [
     "SiconfiRreoAdapter",
     "SiconfiStatementAdapter",
     "SimMortalityAdapter",
+    "SinascBirthsAdapter",
     "TceSpExpenseAdapter",
     "TceSpRevenueAdapter",
 ]

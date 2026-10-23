@@ -254,6 +254,7 @@ export type HealthOverview = {
   };
   epidemiology: {
     total_deaths: number | null;
+    live_births: number | null;
     availability: "available" | "unavailable";
     causes: HealthBreakdown[];
     age_bands: HealthBreakdown[];

@@ -297,3 +297,26 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   formatação globais aprovados após normalizar nove arquivos legados exigidos pela CI.
 - Frontend: teste de conteúdo, TypeScript e build de produção Next.js aprovados; a rota dinâmica
   `/municipios/[ibgeCode]/[setor]` renderiza o painel de saúde quando `setor=saude`.
+
+### Complemento homologado — leitos CNES e SINASC
+
+- Migrações `0011` e `0012` aplicadas do zero em PostgreSQL 16, registrando fontes, datasets e
+  decisões do catálogo com UUID nativo.
+- O arquivo Hospitais e Leitos 2026 teve 4.914.199 bytes, SHA-256
+  `9e36112332b486a265890ad5327e0c7ba86a5d4ed000ece455f12838739d9157` e competência máxima
+  `202609`. A carga aceitou 277 hospitais nos três municípios e nenhuma rejeição.
+- Reconciliação direta do CSV e do banco: Ribeirão Preto 18 hospitais/2.555 leitos/1.609 SUS;
+  Campinas 26/3.473/1.638; São Paulo 233/37.437/18.069.
+- O SINASC 2024 teve 92.289.354 bytes compactados, 561.812.933 bytes descompactados e SHA-256
+  `27e55de6359e1b1914301dc1d752d78e9535a7a52cc0640931dd94876aca6027`. As três contagens por
+  residência foram 7.020, 11.465 e 120.789, respectivamente.
+- A repetição de cada carga manteve 277 estabelecimentos/leitos, três fatos SINASC e um snapshot
+  por dataset. Os arquivos temporários não foram persistidos.
+- A API real respondeu HTTP 200: `/health/overview` retornou 18 estabelecimentos, 2.555 leitos,
+  1.609 leitos SUS e 7.020 nascidos vivos para Ribeirão Preto; `/health/beds` retornou paginação
+  SQL com 18 linhas. A ausência de SIM no banco descartável permaneceu `null`, nunca zero.
+- SIA/SUS, SIH/SUS, serviços CNES e SIOPS continuam sem conector homologado. O material Swagger
+  não foi promovido a fonte operacional sem resposta/schema verificáveis.
+- O ciclo de migração `0012 → 0010 → 0012` foi aprovado. A suíte completa passou com 39 testes;
+  Ruff e verificação de formatação passaram. O frontend passou no teste de conteúdo, TypeScript e
+  build de produção com 23 rotas Next.js.

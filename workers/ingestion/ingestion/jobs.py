@@ -41,6 +41,8 @@ def schedule_job(
         "siconfi_rgf": "siconfi_rgf",
         "siconfi_dca": "siconfi_dca",
         "sim_mortality": "sim_mortality_municipal",
+        "cnes_beds": "cnes_beds_establishments",
+        "sinasc_births": "sinasc_births_municipal",
     }.get(source)
     if dataset_code is None:
         raise ValueError(f"Fonte desconhecida: {source}")

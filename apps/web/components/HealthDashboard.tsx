@@ -36,8 +36,8 @@ export function HealthDashboard({ code }: { code: string }) {
         <p className="eyebrow">{data.municipality.name}/{data.municipality.state}</p>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">Saúde</h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-ink/65">
-          Rede cadastrada, capacidade e mortalidade municipal em recortes separados. Cadastro,
-          produção assistencial e eventos epidemiológicos não são tratados como equivalentes.
+          Rede cadastrada, capacidade, mortalidade e nascidos vivos em recortes separados.
+          Cadastro, produção assistencial e eventos vitais não são tratados como equivalentes.
         </p>
         <label className="mt-6 block max-w-44 text-sm font-bold">
           Ano de referência
@@ -47,10 +47,11 @@ export function HealthDashboard({ code }: { code: string }) {
         </label>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Estabelecimentos CNES" value={formatCount(data.network.establishments)} method={data.network.methodology} />
         <Metric label="Leitos cadastrados" value={formatCount(data.network.registered_beds)} method={data.network.methodology} />
         <Metric label={`Óbitos SIM ${year}`} value={formatCount(data.epidemiology.total_deaths)} method={data.epidemiology.methodology} />
+        <Metric label={`Nascidos vivos SINASC ${year}`} value={formatCount(data.epidemiology.live_births)} method="Registros do SINASC agregados pelo município de residência." />
         <Metric label="Produção SIA/SIH" value="Não disponível" method={data.production.methodology} />
       </section>
 
@@ -71,7 +72,7 @@ export function HealthDashboard({ code }: { code: string }) {
       <details className="card p-6">
         <summary className="cursor-pointer font-extrabold">Cobertura, proveniência e limites</summary>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">{data.sources.map((source) => <div key={source.dataset}><p className="font-bold">{source.dataset}</p><p className="mt-1 text-sm text-ink/60">{source.provider ?? "Fonte ainda não configurada"} · conector {source.connector_status ?? "não configurado"} · publicação {source.publication_status ?? "não informada"}</p>{source.url && <a className="mt-2 inline-block text-sm font-bold text-teal underline" href={source.url} target="_blank" rel="noreferrer">Fonte oficial</a>}</div>)}</div>
-        <p className="mt-5 text-sm leading-6 text-ink/65">CNES descreve cadastro, não disponibilidade em tempo real. SIM registra óbitos e não mede casos notificados ou confirmados. Não há prontuários, nomes, endereços de pacientes ou cruzamento entre causa e idade nesta publicação.</p>
+        <p className="mt-5 text-sm leading-6 text-ink/65">CNES descreve cadastro, não disponibilidade em tempo real. SIM registra óbitos; SINASC registra nascidos vivos por residência. Nenhum deles mede casos notificados ou confirmados. Não há prontuários, nomes, endereços de pacientes ou cruzamento entre causa e idade nesta publicação.</p>
       </details>
     </div>
   );

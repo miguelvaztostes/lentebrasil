@@ -75,7 +75,7 @@ def ingest(
         help=(
             "ibge, siconfi, cnes, educação, pncp, pncp_contracts, tcesp_revenues, "
             "tcesp_expenses, "
-            "siconfi_rgf, siconfi_dca, sim_mortality ou all"
+            "siconfi_rgf, siconfi_dca, sim_mortality, cnes_beds, sinasc_births ou all"
         ),
     ),
     dry_run: bool = typer.Option(False, help="Coleta e valida sem gravar no banco"),
@@ -159,7 +159,8 @@ def schedule(
     source: str = typer.Option(
         ...,
         help=(
-            "ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae ou sim_mortality"
+            "ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae, "
+            "sim_mortality, cnes_beds ou sinasc_births"
         ),
     ),
     municipalities: str | None = None,

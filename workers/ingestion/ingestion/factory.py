@@ -16,7 +16,11 @@ from ingestion.adapters.federal_education import (
     InepSaebAdapter,
     normalize_fnde_municipality_name,
 )
-from ingestion.adapters.health import SimMortalityAdapter
+from ingestion.adapters.health import (
+    CnesBedsAdapter,
+    SimMortalityAdapter,
+    SinascBirthsAdapter,
+)
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
 from ingestion.adapters.transparency import (
@@ -224,6 +228,43 @@ def build_adapter(
             )
         ).all()
         return SimMortalityAdapter(
+            raw_data_dir=raw_data_dir,
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
+            selected_municipalities=set(codes),
+            year=2024,
+        )
+    if source == "cnes_beds":
+        mappings = db.execute(
+            select(GeoCodeMapping.external_code, GeoUnit.code)
+            .join(GeoUnit, GeoUnit.id == GeoCodeMapping.geo_unit_id)
+            .where(
+                GeoCodeMapping.code_system == "CNES_MUNICIPALITY",
+                GeoCodeMapping.valid_to.is_(None),
+                GeoUnit.active.is_(True),
+            )
+        ).all()
+        return CnesBedsAdapter(
+            raw_data_dir=raw_data_dir,
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
+            selected_municipalities=set(codes),
+        )
+    if source == "sinasc_births":
+        if start_year not in {None, 2024} or end_year not in {None, 2024}:
+            raise ValueError("Somente o artefato definitivo SINASC 2024 foi homologado")
+        mappings = db.execute(
+            select(GeoCodeMapping.external_code, GeoUnit.code)
+            .join(GeoUnit, GeoUnit.id == GeoCodeMapping.geo_unit_id)
+            .where(
+                GeoCodeMapping.code_system == "CNES_MUNICIPALITY",
+                GeoCodeMapping.valid_to.is_(None),
+                GeoUnit.active.is_(True),
+            )
+        ).all()
+        return SinascBirthsAdapter(
             raw_data_dir=raw_data_dir,
             municipality_crosswalk={
                 external: canonical for external, canonical in mappings

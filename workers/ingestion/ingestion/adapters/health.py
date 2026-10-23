@@ -13,7 +13,12 @@ from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 import httpx
-from lente_api.models import HealthEpidemiology, SourceSnapshot
+from lente_api.models import (
+    HealthBed,
+    HealthEpidemiology,
+    HealthEstablishment,
+    SourceSnapshot,
+)
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -27,6 +32,16 @@ from ingestion.adapters.base import (
 SIM_CATALOG_URL = "https://dadosabertos.saude.gov.br/dataset/sim"
 SIM_2024_URL = (
     "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SIM/csv/DO24OPEN_csv.zip"
+)
+CNES_BEDS_CATALOG_URL = "https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos"
+CNES_BEDS_2026_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/Leitos_SUS/Leitos_csv_2026.zip"
+SINASC_CATALOG_URL = (
+    "https://dadosabertos.saude.gov.br/dataset/"
+    "sistema-de-informacao-sobre-nascidos-vivos-sinasc"
+)
+SINASC_2024_URL = (
+    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
+    "SINASC/csv/SINASC_2024_csv.zip"
 )
 
 CID_CHAPTERS: tuple[tuple[str, str], ...] = (
@@ -79,6 +94,528 @@ class EpidemiologyRecord:
     availability_status: str
     disclosure_threshold: int
     document_url: str
+
+
+@dataclass(slots=True)
+class CnesBedRecord:
+    municipality_code: str
+    cnes_code: str
+    name: str
+    facility_type_code: str
+    facility_type_name: str
+    management_scope: str
+    active: bool
+    reference_date: date
+    existing_count: int
+    sus_count: int
+    document_url: str
+
+
+class CnesBedsAdapter(SourceAdapter):
+    source_name = "Ministério da Saúde — Hospitais e Leitos/CNES"
+    dataset_code = "cnes_beds_establishments"
+    allowed_host = "s3.sa-east-1.amazonaws.com"
+    required_fields: ClassVar[set[str]] = {
+        "COMP",
+        "CO_IBGE",
+        "CNES",
+        "NOME_ESTABELECIMENTO",
+        "MOTIVO_DESABILITACAO",
+        "TP_GESTAO",
+        "CO_TIPO_UNIDADE",
+        "DS_TIPO_UNIDADE",
+        "LEITOS_EXISTENTES",
+        "LEITOS_SUS",
+    }
+
+    def __init__(
+        self,
+        *,
+        raw_data_dir: Path,
+        municipality_crosswalk: dict[str, str],
+        selected_municipalities: set[str],
+    ):
+        super().__init__(raw_data_dir=raw_data_dir)
+        self.crosswalk = municipality_crosswalk
+        self.selected = selected_municipalities
+
+    @classmethod
+    def _validate_url(cls, value: str) -> None:
+        parsed = urlparse(value)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != cls.allowed_host
+            or parsed.path != "/ckan.saude.gov.br/Leitos_SUS/Leitos_csv_2026.zip"
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise SourceValidationError(
+                "URL de leitos CNES não permitida", code="unsafe_source_url"
+            )
+
+    def discover(self) -> dict[str, Any]:
+        self._validate_url(CNES_BEDS_2026_URL)
+        response = httpx.head(
+            CNES_BEDS_2026_URL,
+            follow_redirects=True,
+            timeout=60,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+        self._validate_url(str(response.url))
+        size = int(response.headers.get("content-length", "0"))
+        if not 0 < size <= 50_000_000:
+            raise SourceValidationError(
+                "Tamanho do recurso de leitos inválido", code="resource_size_invalid"
+            )
+        return {
+            "catalog": CNES_BEDS_CATALOG_URL,
+            "resource": CNES_BEDS_2026_URL,
+            "content_length": size,
+        }
+
+    def fetch(self) -> list[FetchedPayload]:
+        self._validate_url(CNES_BEDS_2026_URL)
+        response = self.get(CNES_BEDS_2026_URL, timeout=180)
+        self._validate_url(str(response.url))
+        if len(response.content) > 50_000_000:
+            raise SourceValidationError(
+                "Recurso de leitos excede o limite", code="resource_too_large"
+            )
+        return [
+            FetchedPayload(
+                content=response.content,
+                url=str(response.url),
+                fetched_at=datetime.now(UTC),
+                original_format="csv.zip",
+                response_headers=self.selected_headers(response),
+                published_at=self.header_datetime(response, "last-modified"),
+                persist_raw=False,
+            )
+        ]
+
+    def parse(self, payload: FetchedPayload) -> list[CnesBedRecord]:
+        with zipfile.ZipFile(io.BytesIO(payload.read_bytes())) as archive:
+            members = [
+                item
+                for item in archive.infolist()
+                if item.filename.lower().endswith(".csv")
+            ]
+            if len(members) != 1 or members[0].file_size > 100_000_000:
+                raise SourceValidationError(
+                    "Conteúdo ZIP de leitos alterado", code="schema_drift"
+                )
+            with archive.open(members[0]) as raw:
+                reader = csv.DictReader(
+                    io.TextIOWrapper(
+                        raw, encoding="cp1252", errors="strict", newline=""
+                    ),
+                    delimiter=";",
+                )
+                fields = set(reader.fieldnames or [])
+                if not self.required_fields.issubset(fields):
+                    raise SourceValidationError(
+                        "Cabeçalho de leitos alterado",
+                        code="schema_drift",
+                        details={"missing": sorted(self.required_fields - fields)},
+                    )
+                selected_rows = [
+                    row
+                    for row in reader
+                    if self.crosswalk.get(row["CO_IBGE"].strip()) in self.selected
+                ]
+        if not selected_rows:
+            raise SourceValidationError(
+                "Leitos sem linhas para o recorte", code="empty_selection"
+            )
+        latest = max(row["COMP"] for row in selected_rows)
+        records = []
+        for row in selected_rows:
+            if row["COMP"] != latest:
+                continue
+            records.append(
+                CnesBedRecord(
+                    municipality_code=self.crosswalk[row["CO_IBGE"].strip()],
+                    cnes_code=row["CNES"].strip(),
+                    name=row["NOME_ESTABELECIMENTO"].strip(),
+                    facility_type_code=row["CO_TIPO_UNIDADE"].strip(),
+                    facility_type_name=row["DS_TIPO_UNIDADE"].strip(),
+                    management_scope=row["TP_GESTAO"].strip(),
+                    active=not bool(row["MOTIVO_DESABILITACAO"].strip()),
+                    reference_date=date(int(latest[:4]), int(latest[4:]), 1),
+                    existing_count=int(row["LEITOS_EXISTENTES"] or 0),
+                    sus_count=int(row["LEITOS_SUS"] or 0),
+                    document_url=CNES_BEDS_2026_URL,
+                )
+            )
+        return records
+
+    def validate(self, records: list[CnesBedRecord]) -> None:
+        keys = [(item.municipality_code, item.cnes_code) for item in records]
+        if len(keys) != len(set(keys)):
+            raise SourceValidationError(
+                "CNES duplicado na competência de leitos", code="duplicate_key"
+            )
+        if any(
+            item.existing_count < 0
+            or item.sus_count < 0
+            or item.sus_count > item.existing_count
+            for item in records
+        ):
+            raise SourceValidationError(
+                "Quantitativo de leitos inválido", code="invalid_capacity"
+            )
+
+    def upsert(
+        self, db: Session, records: list[CnesBedRecord], snapshot: SourceSnapshot
+    ) -> None:
+        for record in records:
+            previous = db.scalar(
+                select(HealthEstablishment)
+                .where(
+                    HealthEstablishment.source_system == "cnes_beds",
+                    HealthEstablishment.source_key == record.cnes_code,
+                )
+                .order_by(desc(HealthEstablishment.revision))
+                .limit(1)
+            )
+            unchanged = (
+                previous is not None
+                and previous.reference_date == record.reference_date
+                and previous.name == record.name
+                and previous.facility_type_code == record.facility_type_code
+                and previous.facility_type_name == record.facility_type_name
+                and previous.management_scope == record.management_scope
+                and previous.sus_linked == (record.sus_count > 0)
+                and previous.active == record.active
+            )
+            establishment = previous
+            if not unchanged:
+                establishment = HealthEstablishment(
+                    source_system="cnes_beds",
+                    source_key=record.cnes_code,
+                    cnes_code=record.cnes_code,
+                    municipality_ibge_code=record.municipality_code,
+                    name=record.name,
+                    facility_type_code=record.facility_type_code,
+                    facility_type_name=record.facility_type_name,
+                    management_scope=record.management_scope,
+                    sus_linked=record.sus_count > 0,
+                    active=record.active,
+                    reference_date=record.reference_date,
+                    source_document_url=record.document_url,
+                    snapshot_id=snapshot.id,
+                    revision=1 if previous is None else previous.revision + 1,
+                )
+                db.add(establishment)
+                db.flush()
+            assert establishment is not None
+            bed_key = f"{record.cnes_code}:total"
+            previous_bed = db.scalar(
+                select(HealthBed)
+                .where(
+                    HealthBed.source_system == "cnes_beds",
+                    HealthBed.source_key == bed_key,
+                )
+                .order_by(desc(HealthBed.revision))
+                .limit(1)
+            )
+            if (
+                previous_bed is not None
+                and previous_bed.establishment_id == establishment.id
+                and previous_bed.existing_count == record.existing_count
+                and previous_bed.sus_count == record.sus_count
+                and previous_bed.reference_date == record.reference_date
+            ):
+                continue
+            db.add(
+                HealthBed(
+                    source_system="cnes_beds",
+                    source_key=bed_key,
+                    establishment_id=establishment.id,
+                    bed_type_code="total",
+                    bed_type_name="Total de leitos cadastrados",
+                    existing_count=record.existing_count,
+                    sus_count=record.sus_count,
+                    reference_date=record.reference_date,
+                    snapshot_id=snapshot.id,
+                    revision=1 if previous_bed is None else previous_bed.revision + 1,
+                )
+            )
+        db.flush()
+
+
+class SinascBirthsAdapter(SourceAdapter):
+    source_name = "DATASUS/SINASC — nascidos vivos municipais agregados"
+    dataset_code = "sinasc_births_municipal"
+    allowed_host = "s3.sa-east-1.amazonaws.com"
+    max_download_bytes = 130_000_000
+    max_uncompressed_bytes = 700_000_000
+    required_fields: ClassVar[set[str]] = {"CODMUNRES", "DTNASC"}
+
+    def __init__(
+        self,
+        *,
+        raw_data_dir: Path,
+        municipality_crosswalk: dict[str, str],
+        selected_municipalities: set[str],
+        year: int = 2024,
+        disclosure_threshold: int = 5,
+    ):
+        super().__init__(raw_data_dir=raw_data_dir)
+        if year != 2024:
+            raise ValueError("Somente o artefato definitivo SINASC 2024 foi homologado")
+        if not selected_municipalities:
+            raise ValueError("SINASC exige ao menos um município")
+        self.year = year
+        self.disclosure_threshold = disclosure_threshold
+        self.selected_municipalities = selected_municipalities
+        self.external_selected = {
+            external: canonical
+            for external, canonical in municipality_crosswalk.items()
+            if canonical in selected_municipalities
+        }
+        if set(self.external_selected.values()) != selected_municipalities:
+            missing = sorted(
+                selected_municipalities - set(self.external_selected.values())
+            )
+            raise ValueError(f"Municípios sem crosswalk SINASC: {missing}")
+
+    @classmethod
+    def _validate_url(cls, value: str) -> None:
+        parsed = urlparse(value)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != cls.allowed_host
+            or parsed.path != "/ckan.saude.gov.br/SINASC/csv/SINASC_2024_csv.zip"
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise SourceValidationError(
+                "URL SINASC não permitida", code="unsafe_source_url"
+            )
+
+    def discover(self) -> dict[str, Any]:
+        self._validate_url(SINASC_2024_URL)
+        response = httpx.head(
+            SINASC_2024_URL,
+            follow_redirects=True,
+            timeout=60,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+        self._validate_url(str(response.url))
+        size = int(response.headers.get("content-length", "0"))
+        if not 0 < size <= self.max_download_bytes:
+            raise SourceValidationError(
+                "Tamanho do recurso SINASC inválido", code="resource_size_invalid"
+            )
+        return {
+            "catalog": SINASC_CATALOG_URL,
+            "resource": SINASC_2024_URL,
+            "content_length": size,
+        }
+
+    def fetch(self) -> list[FetchedPayload]:
+        self._validate_url(SINASC_2024_URL)
+        directory = self.raw_data_dir / self.dataset_code
+        directory.mkdir(parents=True, exist_ok=True)
+        try:
+            with httpx.stream(
+                "GET",
+                SINASC_2024_URL,
+                headers={"User-Agent": USER_AGENT},
+                follow_redirects=True,
+                timeout=300,
+            ) as response:
+                response.raise_for_status()
+                self._validate_url(str(response.url))
+                with tempfile.NamedTemporaryFile(
+                    dir=directory, prefix="sinasc-", suffix=".zip.part", delete=False
+                ) as target:
+                    path = Path(target.name)
+                    total = 0
+                    for chunk in response.iter_bytes(1024 * 1024):
+                        total += len(chunk)
+                        if total > self.max_download_bytes:
+                            target.close()
+                            path.unlink(missing_ok=True)
+                            raise SourceValidationError(
+                                "Arquivo SINASC excede o limite",
+                                code="resource_too_large",
+                            )
+                        target.write(chunk)
+                return [
+                    FetchedPayload(
+                        content=None,
+                        file_path=path,
+                        url=str(response.url),
+                        fetched_at=datetime.now(UTC),
+                        original_format="csv.zip",
+                        response_headers=self.selected_headers(response),
+                        published_at=self.header_datetime(response, "last-modified"),
+                        persist_raw=False,
+                        resource_version=response.headers.get("etag"),
+                    )
+                ]
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            raise SourceValidationError(
+                "Falha de rede ao baixar SINASC", code="network_error"
+            ) from exc
+
+    def parse(self, payload: FetchedPayload) -> list[EpidemiologyRecord]:
+        if payload.file_path is None:
+            raise SourceValidationError(
+                "Payload SINASC sem arquivo", code="empty_payload"
+            )
+        totals: Counter[str] = Counter()
+        try:
+            with zipfile.ZipFile(payload.file_path) as archive:
+                members = [
+                    item
+                    for item in archive.infolist()
+                    if item.filename.lower().endswith(".csv")
+                ]
+                if len(members) != 1:
+                    raise SourceValidationError(
+                        "Arquivo SINASC deve conter um único CSV", code="schema_drift"
+                    )
+                member = members[0]
+                if member.file_size > self.max_uncompressed_bytes or (
+                    member.compress_size
+                    and member.file_size / member.compress_size > 200
+                ):
+                    raise SourceValidationError(
+                        "ZIP SINASC excede limites seguros", code="zip_bomb"
+                    )
+                with archive.open(member) as raw:
+                    reader = csv.DictReader(
+                        io.TextIOWrapper(
+                            raw, encoding="latin-1", errors="strict", newline=""
+                        ),
+                        delimiter=";",
+                    )
+                    fields = set(reader.fieldnames or [])
+                    if not self.required_fields.issubset(fields):
+                        raise SourceValidationError(
+                            "Cabeçalho SINASC alterado",
+                            code="schema_drift",
+                            details={"missing": sorted(self.required_fields - fields)},
+                        )
+                    for row in reader:
+                        municipality = self.external_selected.get(
+                            row["CODMUNRES"].strip()
+                        )
+                        if municipality is None:
+                            continue
+                        birth_date = row["DTNASC"].strip()
+                        if (
+                            len(birth_date) != 8
+                            or not birth_date.isdigit()
+                            or int(birth_date[-4:]) != self.year
+                        ):
+                            raise SourceValidationError(
+                                "Período SINASC inválido", code="period_mismatch"
+                            )
+                        totals[municipality] += 1
+        except zipfile.BadZipFile as exc:
+            raise SourceValidationError(
+                "Recurso SINASC não é ZIP válido", code="invalid_archive"
+            ) from exc
+        finally:
+            payload.file_path.unlink(missing_ok=True)
+
+        records = []
+        for municipality in sorted(self.selected_municipalities):
+            raw_count = totals[municipality]
+            suppressed = 0 < raw_count < self.disclosure_threshold
+            available = raw_count >= self.disclosure_threshold
+            records.append(
+                EpidemiologyRecord(
+                    source_key=f"{municipality}:{self.year}:live_births:all:residence",
+                    municipality_code=municipality,
+                    year=self.year,
+                    category_code="live_births",
+                    category_name="Nascidos vivos",
+                    age_band="all",
+                    count=raw_count if available else None,
+                    raw_count=raw_count,
+                    availability_status=(
+                        "available"
+                        if available
+                        else "suppressed"
+                        if suppressed
+                        else "unavailable"
+                    ),
+                    disclosure_threshold=self.disclosure_threshold,
+                    document_url=SINASC_2024_URL,
+                )
+            )
+        return records
+
+    def validate(self, records: list[EpidemiologyRecord]) -> None:
+        if len(records) != len(self.selected_municipalities):
+            raise SourceValidationError(
+                "Recorte SINASC incompleto", code="aggregate_mismatch"
+            )
+        if any(
+            item.raw_count < self.disclosure_threshold and item.count is not None
+            for item in records
+        ):
+            raise SourceValidationError(
+                "Célula SINASC pequena não foi suprimida", code="privacy_error"
+            )
+
+    def checkpoint_metadata(self) -> dict[str, Any]:
+        return {
+            "year": self.year,
+            "municipalities": sorted(self.selected_municipalities),
+            "disclosure_threshold": self.disclosure_threshold,
+        }
+
+    def upsert(
+        self,
+        db: Session,
+        records: list[EpidemiologyRecord],
+        snapshot: SourceSnapshot,
+    ) -> None:
+        for record in records:
+            previous = db.scalar(
+                select(HealthEpidemiology)
+                .where(
+                    HealthEpidemiology.source_system == "sinasc",
+                    HealthEpidemiology.source_key == record.source_key,
+                )
+                .order_by(desc(HealthEpidemiology.revision))
+                .limit(1)
+            )
+            if (
+                previous is not None
+                and previous.count == record.count
+                and previous.availability_status == record.availability_status
+            ):
+                continue
+            db.add(
+                HealthEpidemiology(
+                    source_system="sinasc",
+                    source_key=record.source_key,
+                    municipality_ibge_code=record.municipality_code,
+                    indicator_code="sinasc_live_births_residence",
+                    period_start=date(record.year, 1, 1),
+                    period_end=date(record.year, 12, 31),
+                    geography_basis="residence",
+                    category_code=record.category_code,
+                    category_name=record.category_name,
+                    age_band=record.age_band,
+                    count=record.count,
+                    availability_status=record.availability_status,
+                    disclosure_threshold=record.disclosure_threshold,
+                    source_document_url=record.document_url,
+                    snapshot_id=snapshot.id,
+                    revision=1 if previous is None else previous.revision + 1,
+                )
+            )
+        db.flush()
 
 
 def cid_chapter(value: str) -> str:

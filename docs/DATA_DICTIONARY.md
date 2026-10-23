@@ -86,7 +86,7 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 | Tabela | Grão e campos centrais | Semântica pública |
 |---|---|---|
 | `health_establishments` | versão do estabelecimento CNES, município, tipo, vínculo SUS, situação e referência | cadastro administrativo; não prova atendimento ou operação em tempo real |
-| `health_beds` | versão por estabelecimento/tipo de leito/referência, leitos existentes e SUS | capacidade cadastrada; não é disponibilidade ou ocupação |
+| `health_beds` | versão por estabelecimento/tipo de leito/referência, leitos existentes e SUS | o recurso homologado publica o total por hospital; capacidade cadastrada não é disponibilidade ou ocupação |
 | `health_services` | versão por estabelecimento/serviço/classificação/referência | serviço cadastrado; não é produção realizada |
 | `health_production` | município/período/tipo assistencial/procedimento/tipo de estabelecimento/setor SUS | quantidade e valor aprovado agregados; não representa pessoas únicas |
 | `health_epidemiology` | município/período/indicador/base territorial/categoria ou faixa etária | contagem agregada; `NULL` com `suppressed` para células 1–4 |
