@@ -46,13 +46,13 @@ SICONFI_OPENAPI_URL = "https://apidatalake.tesouro.gov.br/docs/siconfi.yaml"
 SICONFI_BASE_URL = "https://apidatalake.tesouro.gov.br/ords/cdwhprd/siconfi/tt"
 TCESP_DATASETS_URL = "https://transparencia.tce.sp.gov.br/conjunto-de-dados"
 TCESP_API_URL = "https://transparencia.tce.sp.gov.br/api/json"
-TCESP_REVENUE_URL = (
-    "https://transparencia.tce.sp.gov.br/sites/default/files/conjunto-dados/receitas-{year}.zip"
-)
+TCESP_REVENUE_URL = "https://transparencia.tce.sp.gov.br/sites/default/files/conjunto-dados/receitas-{year}.zip"
 
 
 def normalize_name(value: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    normalized = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    )
     return re.sub(r"[^A-Z0-9]+", " ", normalized.upper()).strip()
 
 
@@ -80,7 +80,9 @@ def parsed_datetime(value: Any) -> datetime | None:
     if value is None or not str(value).strip():
         return None
     parsed = parse_datetime(str(value))
-    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+    return (
+        parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+    )
 
 
 def parsed_date(value: Any) -> date | None:
@@ -201,7 +203,9 @@ class _PncpBaseAdapter(SourceAdapter):
             "/v1/contratos/atualizacao",
         }
         if not required_paths.issubset(document.get("paths", {})):
-            raise SourceValidationError("Contrato PNCP alterado", code="pncp_schema_changed")
+            raise SourceValidationError(
+                "Contrato PNCP alterado", code="pncp_schema_changed"
+            )
         return {
             "openapi": PNCP_OPENAPI_URL,
             "authentication": "consulta pública sem token",
@@ -241,7 +245,9 @@ class _PncpBaseAdapter(SourceAdapter):
         url = f"{PNCP_BASE_URL}{path}?{urlencode(parameters)}"
         parsed = urlparse(url)
         if parsed.scheme != "https" or parsed.hostname != self.allowed_host:
-            raise SourceValidationError("URL PNCP não permitida", code="unsafe_source_url")
+            raise SourceValidationError(
+                "URL PNCP não permitida", code="unsafe_source_url"
+            )
         response = self.get(url, timeout=90)
         self.pages_fetched += 1
         return response
@@ -251,12 +257,20 @@ class _PncpBaseAdapter(SourceAdapter):
         try:
             envelope = json.loads(payload.read_bytes())
         except json.JSONDecodeError as exc:
-            raise SourceValidationError("Resposta PNCP inválida", code="invalid_json") from exc
+            raise SourceValidationError(
+                "Resposta PNCP inválida", code="invalid_json"
+            ) from exc
         data = envelope.get("data") if isinstance(envelope, dict) else None
         pages = envelope.get("totalPaginas") if isinstance(envelope, dict) else None
         page = envelope.get("numeroPagina") if isinstance(envelope, dict) else None
-        if not isinstance(data, list) or not isinstance(pages, int) or not isinstance(page, int):
-            raise SourceValidationError("Envelope PNCP alterado", code="pncp_schema_changed")
+        if (
+            not isinstance(data, list)
+            or not isinstance(pages, int)
+            or not isinstance(page, int)
+        ):
+            raise SourceValidationError(
+                "Envelope PNCP alterado", code="pncp_schema_changed"
+            )
         return data, pages, page
 
     def _agency(self, row: dict[str, Any]) -> AgencyRecord:
@@ -269,7 +283,11 @@ class _PncpBaseAdapter(SourceAdapter):
         return AgencyRecord(
             source_system="pncp",
             source_key=key,
-            name=str(unit.get("nomeUnidade") or entity.get("razaoSocial") or "Órgão não informado"),
+            name=str(
+                unit.get("nomeUnidade")
+                or entity.get("razaoSocial")
+                or "Órgão não informado"
+            ),
             entity_identifier=cnpj or None,
             unit_code=unit_code,
             municipality_code=municipality,
@@ -315,13 +333,17 @@ class PncpProcurementAdapter(_PncpBaseAdapter):
     def __init__(self, *, modalities: Iterable[int] = range(1, 20), **kwargs: Any):
         super().__init__(**kwargs)
         self.modalities = sorted({int(item) for item in modalities})
-        if not self.modalities or any(item < 1 or item > 99 for item in self.modalities):
+        if not self.modalities or any(
+            item < 1 or item > 99 for item in self.modalities
+        ):
             raise ValueError("Modalidades PNCP inválidas")
 
     def discover(self) -> dict[str, Any]:
         evidence = super().discover()
         modalities = self.get(PNCP_MODALITIES_URL, timeout=60).json()
-        if not isinstance(modalities, list) or not all("id" in item for item in modalities):
+        if not isinstance(modalities, list) or not all(
+            "id" in item for item in modalities
+        ):
             raise SourceValidationError(
                 "Domínio de modalidades alterado", code="pncp_schema_changed"
             )
@@ -331,7 +353,11 @@ class PncpProcurementAdapter(_PncpBaseAdapter):
 
     def fetch(self) -> list[FetchedPayload]:
         payloads: list[FetchedPayload] = []
-        path = "/v1/contratacoes/atualizacao" if self.update_mode else "/v1/contratacoes/publicacao"
+        path = (
+            "/v1/contratacoes/atualizacao"
+            if self.update_mode
+            else "/v1/contratacoes/publicacao"
+        )
         for municipality in sorted(self.selected_municipalities):
             for modality in self.modalities:
                 page = 1
@@ -376,7 +402,9 @@ class PncpProcurementAdapter(_PncpBaseAdapter):
                 "orgaoEntidade",
             }
             if not required.issubset(row):
-                raise SourceValidationError("Schema PNCP alterado", code="pncp_schema_changed")
+                raise SourceValidationError(
+                    "Schema PNCP alterado", code="pncp_schema_changed"
+                )
             agency = self._agency(row)
             municipality = agency.municipality_code
             if municipality not in self.selected_municipalities:
@@ -406,13 +434,17 @@ class PncpProcurementAdapter(_PncpBaseAdapter):
                     estimated_amount=decimal_value(row.get("valorTotalEstimado")),
                     homologated_amount=decimal_value(row.get("valorTotalHomologado")),
                     proposal_start_at=parsed_datetime(row.get("dataAberturaProposta")),
-                    proposal_end_at=parsed_datetime(row.get("dataEncerramentoProposta")),
+                    proposal_end_at=parsed_datetime(
+                        row.get("dataEncerramentoProposta")
+                    ),
                     published_at=parsed_datetime(row.get("dataPublicacaoPncp")),
                     updated_at=updated,
                     document_url=f"https://pncp.gov.br/app/editais/{cnpj}/{year}/{sequential}",
                 )
             )
-            if updated and (self.last_updated_at is None or updated >= self.last_updated_at):
+            if updated and (
+                self.last_updated_at is None or updated >= self.last_updated_at
+            ):
                 self.last_updated_at = updated
                 self.last_source_key = source_key
         return records
@@ -591,7 +623,9 @@ class PncpContractAdapter(_PncpBaseAdapter):
                     document_url=f"https://pncp.gov.br/app/contratos/{cnpj}/{year}/{sequential}",
                 )
             )
-            if updated and (self.last_updated_at is None or updated >= self.last_updated_at):
+            if updated and (
+                self.last_updated_at is None or updated >= self.last_updated_at
+            ):
                 self.last_updated_at = updated
                 self.last_source_key = source_key
         return records
@@ -599,15 +633,21 @@ class PncpContractAdapter(_PncpBaseAdapter):
     def validate(self, records: list[ContractRecord]) -> None:
         keys = [record.source_key for record in records]
         if len(keys) != len(set(keys)):
-            raise SourceValidationError("Contrato PNCP duplicado na página", code="duplicate_key")
+            raise SourceValidationError(
+                "Contrato PNCP duplicado na página", code="duplicate_key"
+            )
         if any(
             (record.initial_amount is not None and record.initial_amount < 0)
             or (record.global_amount is not None and record.global_amount < 0)
             for record in records
         ):
-            raise SourceValidationError("Valor contratual negativo", code="invalid_money")
+            raise SourceValidationError(
+                "Valor contratual negativo", code="invalid_money"
+            )
 
-    def upsert(self, db: Session, records: list[ContractRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[ContractRecord], snapshot: SourceSnapshot
+    ) -> None:
         for record in records:
             agency = self._upsert_agency(db, record.agency)
             previous = db.scalar(
@@ -710,7 +750,9 @@ class SiconfiStatementAdapter(SourceAdapter):
     def discover(self) -> dict[str, Any]:
         body = self.get(SICONFI_OPENAPI_URL, timeout=60).text
         if f"/{self.statement_type}:" not in body or 'name: "id_ente"' not in body:
-            raise SourceValidationError("Contrato Siconfi alterado", code="contract_missing")
+            raise SourceValidationError(
+                "Contrato Siconfi alterado", code="contract_missing"
+            )
         return {
             "openapi": SICONFI_OPENAPI_URL,
             "endpoint": f"{SICONFI_BASE_URL}/{self.statement_type}",
@@ -775,7 +817,9 @@ class SiconfiStatementAdapter(SourceAdapter):
         try:
             envelope = json.loads(payload.read_bytes())
         except json.JSONDecodeError as exc:
-            raise SourceValidationError("Resposta Siconfi inválida", code="invalid_json") from exc
+            raise SourceValidationError(
+                "Resposta Siconfi inválida", code="invalid_json"
+            ) from exc
         rows = envelope.get("items") if isinstance(envelope, dict) else None
         if not isinstance(rows, list) or not rows:
             raise SourceValidationError("Siconfi sem linhas", code="empty_payload")
@@ -790,7 +834,9 @@ class SiconfiStatementAdapter(SourceAdapter):
                 "coluna",
             }
             if not required.issubset(row):
-                raise SourceValidationError("Schema Siconfi alterado", code="schema_drift")
+                raise SourceValidationError(
+                    "Schema Siconfi alterado", code="schema_drift"
+                )
             municipality = str(row["cod_ibge"])
             if municipality not in self.municipality_codes:
                 raise SourceValidationError(
@@ -800,7 +846,11 @@ class SiconfiStatementAdapter(SourceAdapter):
             account_code = str(row["cod_conta"])
             column = str(row["coluna"])
             period = int(row["periodo"]) if row.get("periodo") is not None else None
-            power = str(row.get("co_poder") or self.power) if self.statement_type == "rgf" else None
+            power = (
+                str(row.get("co_poder") or self.power)
+                if self.statement_type == "rgf"
+                else None
+            )
             source_key = ":".join(
                 [
                     self.statement_type,
@@ -853,7 +903,9 @@ class SiconfiStatementAdapter(SourceAdapter):
         if len(keys) != len(set(keys)):
             raise SourceValidationError("Linha fiscal duplicada", code="duplicate_key")
 
-    def upsert(self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot
+    ) -> None:
         _upsert_fiscal_records(db, records, snapshot, self.quality_warnings)
 
 
@@ -932,7 +984,10 @@ class TceSpRevenueAdapter(SourceAdapter):
                 ):
                     response.raise_for_status()
                     parsed = urlparse(str(response.url))
-                    if parsed.scheme != "https" or parsed.hostname != "transparencia.tce.sp.gov.br":
+                    if (
+                        parsed.scheme != "https"
+                        or parsed.hostname != "transparencia.tce.sp.gov.br"
+                    ):
                         raise SourceValidationError(
                             "Redirect TCE-SP não permitido", code="unsafe_redirect"
                         )
@@ -973,27 +1028,37 @@ class TceSpRevenueAdapter(SourceAdapter):
     @staticmethod
     def _validate_zip(path: Path, year: int) -> None:
         if not zipfile.is_zipfile(path):
-            raise SourceValidationError("Recurso TCE-SP não é ZIP", code="unexpected_format")
+            raise SourceValidationError(
+                "Recurso TCE-SP não é ZIP", code="unexpected_format"
+            )
         with zipfile.ZipFile(path) as archive:
             members = [item for item in archive.infolist() if not item.is_dir()]
             if len(members) != 1 or members[0].filename != f"receitas-{year}.csv":
-                raise SourceValidationError("Conteúdo ZIP TCE-SP alterado", code="schema_drift")
+                raise SourceValidationError(
+                    "Conteúdo ZIP TCE-SP alterado", code="schema_drift"
+                )
             member = members[0]
             if member.file_size > 2 * 1024**3 or ".." in Path(member.filename).parts:
-                raise SourceValidationError("ZIP TCE-SP inseguro", code="unsafe_archive")
+                raise SourceValidationError(
+                    "ZIP TCE-SP inseguro", code="unsafe_archive"
+                )
 
     def parse(self, payload: FetchedPayload) -> list[FiscalRecord]:
         if payload.file_path is None:
             raise SourceValidationError("ZIP TCE-SP sem staging", code="empty_payload")
         year_match = re.search(r"exercise:(\d{4})", payload.resource_version or "")
         if not year_match:
-            raise SourceValidationError("Exercício TCE-SP ausente", code="period_mismatch")
+            raise SourceValidationError(
+                "Exercício TCE-SP ausente", code="period_mismatch"
+            )
         year = int(year_match.group(1))
         records: list[FiscalRecord] = []
         with (
             zipfile.ZipFile(payload.file_path) as archive,
             archive.open(f"receitas-{year}.csv") as raw,
-            io.TextIOWrapper(raw, encoding="cp1252", errors="strict", newline="") as text,
+            io.TextIOWrapper(
+                raw, encoding="cp1252", errors="strict", newline=""
+            ) as text,
         ):
             reader = csv.DictReader(text, delimiter=";")
             if reader.fieldnames != self.expected_headers:
@@ -1003,7 +1068,9 @@ class TceSpRevenueAdapter(SourceAdapter):
                     details={"received": reader.fieldnames},
                 )
             for row in reader:
-                municipality = self.municipality_names.get(normalize_name(row["ds_municipio"]))
+                municipality = self.municipality_names.get(
+                    normalize_name(row["ds_municipio"])
+                )
                 if municipality is None:
                     continue
                 account_code, _, account_label = row["ds_tipo"].partition(" - ")
@@ -1057,14 +1124,20 @@ class TceSpRevenueAdapter(SourceAdapter):
 
     def validate(self, records: list[FiscalRecord]) -> None:
         if not records:
-            raise SourceValidationError("TCE-SP sem linhas para o recorte", code="empty_selection")
+            raise SourceValidationError(
+                "TCE-SP sem linhas para o recorte", code="empty_selection"
+            )
         keys = [record.source_key for record in records]
         if len(keys) != len(set(keys)):
             raise SourceValidationError("ID TCE-SP duplicado", code="duplicate_key")
         if any(record.year not in self.years for record in records):
-            raise SourceValidationError("Exercício TCE-SP divergente", code="period_mismatch")
+            raise SourceValidationError(
+                "Exercício TCE-SP divergente", code="period_mismatch"
+            )
 
-    def upsert(self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot
+    ) -> None:
         _upsert_fiscal_records(db, records, snapshot, self.quality_warnings)
 
 
@@ -1143,8 +1216,12 @@ class TceSpExpenseAdapter(SourceAdapter):
             isinstance(row, dict) and {"municipio", "municipio_extenso"}.issubset(row)
             for row in rows
         ):
-            raise SourceValidationError("Schema de municípios TCE-SP alterado", code="schema_drift")
-        available = {normalize_name(row["municipio_extenso"]): row["municipio"] for row in rows}
+            raise SourceValidationError(
+                "Schema de municípios TCE-SP alterado", code="schema_drift"
+            )
+        available = {
+            normalize_name(row["municipio_extenso"]): row["municipio"] for row in rows
+        }
         missing: list[str] = []
         for code, name in self.municipalities.items():
             slug = available.get(normalize_name(name))
@@ -1172,7 +1249,9 @@ class TceSpExpenseAdapter(SourceAdapter):
     def _assert_url(response: httpx.Response) -> None:
         parsed = urlparse(str(response.url))
         if parsed.scheme != "https" or parsed.hostname != "transparencia.tce.sp.gov.br":
-            raise SourceValidationError("Redirect TCE-SP não permitido", code="unsafe_redirect")
+            raise SourceValidationError(
+                "Redirect TCE-SP não permitido", code="unsafe_redirect"
+            )
 
     @staticmethod
     def _phase(value: Any) -> str:
@@ -1218,9 +1297,12 @@ class TceSpExpenseAdapter(SourceAdapter):
                     totals: dict[str, Decimal] = {}
                     counts: dict[str, int] = {}
                     for row in rows:
-                        if not isinstance(row, dict) or not self.required_fields.issubset(row):
+                        if not isinstance(
+                            row, dict
+                        ) or not self.required_fields.issubset(row):
                             raise SourceValidationError(
-                                "Schema de despesas TCE-SP alterado", code="schema_drift"
+                                "Schema de despesas TCE-SP alterado",
+                                code="schema_drift",
                             )
                         if normalize_name(row["mes"]) != self.month_names[month]:
                             raise SourceValidationError(
@@ -1277,7 +1359,9 @@ class TceSpExpenseAdapter(SourceAdapter):
                             fetched_at=datetime.now(UTC),
                             original_format="json",
                             response_headers=headers,
-                            published_at=self.header_datetime(response, "last-modified"),
+                            published_at=self.header_datetime(
+                                response, "last-modified"
+                            ),
                             persist_raw=True,
                             resource_version=f"{municipality_code}:{year}:{month}",
                         )
@@ -1329,7 +1413,9 @@ class TceSpExpenseAdapter(SourceAdapter):
         if len(keys) != len(set(keys)):
             raise SourceValidationError("Fase TCE-SP duplicada", code="duplicate_key")
         if any(record.amount is None or record.amount < 0 for record in records):
-            raise SourceValidationError("Total de fase TCE-SP inválido", code="invalid_money")
+            raise SourceValidationError(
+                "Total de fase TCE-SP inválido", code="invalid_money"
+            )
 
     def checkpoint_metadata(self) -> dict[str, Any]:
         return {
@@ -1338,7 +1424,9 @@ class TceSpExpenseAdapter(SourceAdapter):
             "municipalities": sorted(self.municipalities),
         }
 
-    def upsert(self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[FiscalRecord], snapshot: SourceSnapshot
+    ) -> None:
         _upsert_fiscal_records(db, records, snapshot, self.quality_warnings)
 
 
@@ -1408,7 +1496,9 @@ def _upsert_fiscal_records(
                 power=record.power,
                 column_code=record.column_code,
                 amount=record.amount,
-                availability_status="available" if record.amount is not None else "unavailable",
+                availability_status="available"
+                if record.amount is not None
+                else "unavailable",
                 source_document_url=record.document_url,
                 source_published_at=record.source_published_at,
                 snapshot_id=snapshot.id,

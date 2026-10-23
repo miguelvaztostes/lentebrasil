@@ -225,6 +225,49 @@ export type TransparencyOverview = {
   methodology: string;
 };
 
+export type HealthSource = {
+  dataset: string;
+  provider?: string;
+  url?: string;
+  license?: string | null;
+  source_status?: string;
+  connector_status?: string;
+  publication_status?: string;
+};
+
+export type HealthBreakdown = {
+  code: string;
+  name: string;
+  count: number | null;
+  availability_status: string;
+};
+
+export type HealthOverview = {
+  municipality: Municipality;
+  year: number;
+  network: {
+    establishments: number | null;
+    registered_beds: number | null;
+    registered_sus_beds: number | null;
+    availability: "available" | "unavailable";
+    methodology: string;
+  };
+  epidemiology: {
+    total_deaths: number | null;
+    availability: "available" | "unavailable";
+    causes: HealthBreakdown[];
+    age_bands: HealthBreakdown[];
+    methodology: string;
+  };
+  production: { availability: "available" | "unavailable"; methodology: string };
+  health_spending: {
+    availability: "available" | "unavailable";
+    value: string | null;
+    methodology: string;
+  };
+  sources: HealthSource[];
+};
+
 export type Paged<T> = { items: T[]; count: number; limit: number; offset: number; notice?: string; methodology?: string };
 
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {

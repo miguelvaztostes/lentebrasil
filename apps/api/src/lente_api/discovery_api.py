@@ -16,6 +16,7 @@ from lente_api.models import (
     DataProvider,
     Dataset,
     DatasetCoverage,
+    HealthEpidemiology,
     Municipality,
     Observation,
     Source,
@@ -61,13 +62,21 @@ def public_status(
 
 
 def _status_condition(status: str) -> Any:
-    published = (
+    observed = (
         select(Observation.id)
         .join(SourceSnapshot, SourceSnapshot.id == Observation.snapshot_id)
         .where(SourceSnapshot.dataset_id == Dataset.id)
         .limit(1)
         .exists()
     )
+    health_published = (
+        select(HealthEpidemiology.id)
+        .join(SourceSnapshot, SourceSnapshot.id == HealthEpidemiology.snapshot_id)
+        .where(SourceSnapshot.dataset_id == Dataset.id)
+        .limit(1)
+        .exists()
+    )
+    published = or_(observed, health_published)
     if status == "restricted":
         return SourceResource.source_status == "restricted"
     if status == "unavailable":
@@ -302,6 +311,17 @@ def search_catalog(
                 .distinct()
             )
         )
+        published_dataset_ids.update(
+            db.scalars(
+                select(SourceSnapshot.dataset_id)
+                .join(
+                    HealthEpidemiology,
+                    HealthEpidemiology.snapshot_id == SourceSnapshot.id,
+                )
+                .where(SourceSnapshot.dataset_id.in_(dataset_ids))
+                .distinct()
+            )
+        )
 
     municipality_statement = select(Municipality)
     if uf:
@@ -312,14 +332,18 @@ def search_catalog(
         )
     municipalities = list(db.scalars(municipality_statement.order_by(Municipality.name).limit(8)))
     candidate_total = db.scalar(select(func.count(CatalogEntry.id))) or 0
-    published_total = (
-        db.scalar(
-            select(func.count(func.distinct(SourceSnapshot.dataset_id))).join(
-                Observation, Observation.snapshot_id == SourceSnapshot.id
+    published_datasets = (
+        select(SourceSnapshot.dataset_id)
+        .join(Observation, Observation.snapshot_id == SourceSnapshot.id)
+        .union(
+            select(SourceSnapshot.dataset_id).join(
+                HealthEpidemiology,
+                HealthEpidemiology.snapshot_id == SourceSnapshot.id,
             )
         )
-        or 0
+        .subquery()
     )
+    published_total = db.scalar(select(func.count()).select_from(published_datasets)) or 0
     facets = {
         "sectors": _facet(
             db.execute(
@@ -451,6 +475,14 @@ def source_detail(identifier: str, db: DbSession) -> dict[str, Any]:
                 .limit(1)
             )
             if has_observation is not None:
+                published_dataset_ids.add(entry.dataset_id)
+            has_health_fact = db.scalar(
+                select(HealthEpidemiology.id)
+                .join(SourceSnapshot, SourceSnapshot.id == HealthEpidemiology.snapshot_id)
+                .where(SourceSnapshot.dataset_id == entry.dataset_id)
+                .limit(1)
+            )
+            if has_health_fact is not None:
                 published_dataset_ids.add(entry.dataset_id)
         return {
             "kind": "catalog_candidate",

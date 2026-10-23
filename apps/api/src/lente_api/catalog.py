@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from lente_api.database import SessionLocal
 from lente_api.education_decisions import DECIDED_AT, EDUCATION_DECISIONS
+from lente_api.health_decisions import DECIDED_AT as HEALTH_DECIDED_AT
+from lente_api.health_decisions import HEALTH_DECISIONS
 from lente_api.models import (
     CatalogEntry,
     CatalogImport,
@@ -39,6 +41,7 @@ REFERENCE_INDICATORS = 95
 HOMOLOGATED_DATASET_LINKS = {
     "LNT-0003": "ibge_population",
     "LNT-0018": "cnes_establishments",
+    "LNT-0020": "sim_mortality_municipal",
     "LNT-0093": "siconfi_rreo",
     "LNT-0007": "inep_censo_escolar",
     "LNT-0009": "inep_ideb_municipal",
@@ -930,12 +933,19 @@ def _import_record(
         entry.indicator_refs = indicator_refs
         entry.raw_record = record
         entry.imported_at = imported_at
-    decision = EDUCATION_DECISIONS.get(external_id) or TRANSPARENCY_DECISIONS.get(external_id)
+    decision = (
+        EDUCATION_DECISIONS.get(external_id)
+        or TRANSPARENCY_DECISIONS.get(external_id)
+        or HEALTH_DECISIONS.get(external_id)
+    )
     if decision:
         entry.integration_decision, entry.decision_reason = decision
-        entry.decided_at = (
-            DECIDED_AT if external_id in EDUCATION_DECISIONS else TRANSPARENCY_DECIDED_AT
-        )
+        if external_id in EDUCATION_DECISIONS:
+            entry.decided_at = DECIDED_AT
+        elif external_id in TRANSPARENCY_DECISIONS:
+            entry.decided_at = TRANSPARENCY_DECIDED_AT
+        else:
+            entry.decided_at = HEALTH_DECIDED_AT
         if decision[0] == "integrate" and resource is not None:
             resource.source_status = "verified"
             resource.connector_status = "implemented"

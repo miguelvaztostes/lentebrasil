@@ -14,17 +14,6 @@ from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 import httpx
-from openpyxl import load_workbook
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-
-from ingestion.adapters.base import (
-    USER_AGENT,
-    FetchedPayload,
-    SourceAdapter,
-    SourceValidationError,
-)
 from lente_api.models import (
     Dataset,
     EducationEnrollment,
@@ -34,11 +23,27 @@ from lente_api.models import (
     SchoolVersion,
     SourceSnapshot,
 )
-
-CENSO_2024_URL = "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip"
-IDEB_2025_URL = (
-    "https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip"
+from openpyxl import load_workbook
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
 )
+
+from ingestion.adapters.base import (
+    USER_AGENT,
+    FetchedPayload,
+    SourceAdapter,
+    SourceValidationError,
+)
+
+CENSO_2024_URL = (
+    "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip"
+)
+IDEB_2025_URL = "https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip"
 ALLOWED_HOST = "download.inep.gov.br"
 MISSING = {"", "-", "...", "NA", "N/A", "NULL"}
 
@@ -175,7 +180,9 @@ class _InepDownloadAdapter(SourceAdapter):
                             )
                         stream.write(chunk)
             if target.read_bytes()[:2] != b"PK":
-                raise SourceValidationError("Recurso baixado não é ZIP", code="unexpected_format")
+                raise SourceValidationError(
+                    "Recurso baixado não é ZIP", code="unexpected_format"
+                )
             self._validate_zip(target)
             return [
                 FetchedPayload(
@@ -185,7 +192,9 @@ class _InepDownloadAdapter(SourceAdapter):
                     fetched_at=fetched_at,
                     original_format="zip",
                     response_headers=headers,
-                    published_at=self.header_datetime_from_headers(headers, "last-modified"),
+                    published_at=self.header_datetime_from_headers(
+                        headers, "last-modified"
+                    ),
                 )
             ]
         except Exception:
@@ -193,25 +202,38 @@ class _InepDownloadAdapter(SourceAdapter):
             raise
 
     @staticmethod
-    def header_datetime_from_headers(headers: dict[str, str], name: str) -> datetime | None:
+    def header_datetime_from_headers(
+        headers: dict[str, str], name: str
+    ) -> datetime | None:
         from dateutil.parser import parse
 
-        raw = next((value for key, value in headers.items() if key.lower() == name), None)
+        raw = next(
+            (value for key, value in headers.items() if key.lower() == name), None
+        )
         return parse(raw).astimezone(UTC) if raw else None
 
     @staticmethod
     def _validate_zip(path: Path) -> None:
         with zipfile.ZipFile(path) as archive:
             members = archive.infolist()
-            if len(members) > 100 or sum(item.file_size for item in members) > 2 * 1024**3:
-                raise SourceValidationError("ZIP excede limites seguros", code="unsafe_archive")
+            if (
+                len(members) > 100
+                or sum(item.file_size for item in members) > 2 * 1024**3
+            ):
+                raise SourceValidationError(
+                    "ZIP excede limites seguros", code="unsafe_archive"
+                )
             if any(
                 Path(item.filename).is_absolute() or ".." in Path(item.filename).parts
                 for item in members
             ):
-                raise SourceValidationError("Caminho inseguro no ZIP", code="unsafe_archive")
+                raise SourceValidationError(
+                    "Caminho inseguro no ZIP", code="unsafe_archive"
+                )
 
-    def _release(self, db: Session, snapshot: SourceSnapshot, year: int) -> PublicationRelease:
+    def _release(
+        self, db: Session, snapshot: SourceSnapshot, year: int
+    ) -> PublicationRelease:
         release_key = f"{year}-{snapshot.sha256[:16]}"
         release = db.scalar(
             select(PublicationRelease).where(
@@ -281,11 +303,14 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
 
     def parse(self, payload: FetchedPayload) -> list[SchoolRecord]:
         records: list[SchoolRecord] = []
-        with zipfile.ZipFile(payload.file_path or io.BytesIO(payload.read_bytes())) as archive:
+        with zipfile.ZipFile(
+            payload.file_path or io.BytesIO(payload.read_bytes())
+        ) as archive:
             names = [
                 name
                 for name in archive.namelist()
-                if name.lower().endswith(".csv") and "microdados_ed_basica" in name.lower()
+                if name.lower().endswith(".csv")
+                and "microdados_ed_basica" in name.lower()
             ]
             if len(names) != 1:
                 raise SourceValidationError(
@@ -327,7 +352,9 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
                             name=str(row["NO_ENTIDADE"]).strip(),
                             state=str(row["SG_UF"]).strip(),
                             dependency_code=str(row["TP_DEPENDENCIA"]).strip(),
-                            operating_status=str(row["TP_SITUACAO_FUNCIONAMENTO"]).strip(),
+                            operating_status=str(
+                                row["TP_SITUACAO_FUNCIONAMENTO"]
+                            ).strip(),
                             location_type={"1": "urban", "2": "rural"}.get(
                                 str(row["TP_LOCALIZACAO"]).strip()
                             ),
@@ -336,7 +363,8 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
                                 for name, field in self.infrastructure_fields.items()
                             },
                             enrollments={
-                                name: _safe_int(row[field]) for name, field in self.stages.items()
+                                name: _safe_int(row[field])
+                                for name, field in self.stages.items()
                             },
                         )
                     )
@@ -344,25 +372,35 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
 
     def validate(self, records: list[SchoolRecord]) -> None:
         if not records:
-            raise SourceValidationError("Censo sem escolas para o recorte", code="empty_selection")
+            raise SourceValidationError(
+                "Censo sem escolas para o recorte", code="empty_selection"
+            )
         if any(item.year != self.year or len(item.inep_code) != 8 for item in records):
             raise SourceValidationError(
                 "Ano ou código Inep inválido", code="censo_invalid_identity"
             )
         if len({item.inep_code for item in records}) != len(records):
-            raise SourceValidationError("Escola duplicada no Censo", code="censo_duplicate_school")
+            raise SourceValidationError(
+                "Escola duplicada no Censo", code="censo_duplicate_school"
+            )
 
-    def upsert(self, db: Session, records: list[SchoolRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[SchoolRecord], snapshot: SourceSnapshot
+    ) -> None:
         release = self._release(db, snapshot, self.year)
         if db.scalar(
-            select(SchoolVersion.id).where(SchoolVersion.release_id == release.id).limit(1)
+            select(SchoolVersion.id)
+            .where(SchoolVersion.release_id == release.id)
+            .limit(1)
         ):
             return
         now = datetime.now(UTC)
         existing = {
             item.inep_code: item
             for item in db.scalars(
-                select(School).where(School.inep_code.in_([record.inep_code for record in records]))
+                select(School).where(
+                    School.inep_code.in_([record.inep_code for record in records])
+                )
             )
         }
         for record in records:
@@ -407,7 +445,9 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
                         stage_code=stage,
                         dependency_code=record.dependency_code,
                         enrollment_count=count,
-                        availability_status="available" if count is not None else "unavailable",
+                        availability_status="available"
+                        if count is not None
+                        else "unavailable",
                         snapshot_id=snapshot.id,
                         release_id=release.id,
                     )
@@ -435,21 +475,28 @@ class InepIdebAdapter(_InepDownloadAdapter):
 
     def parse(self, payload: FetchedPayload) -> list[MetricRecord]:
         records: list[MetricRecord] = []
-        with zipfile.ZipFile(payload.file_path or io.BytesIO(payload.read_bytes())) as archive:
-            names = [name for name in archive.namelist() if name.lower().endswith(".xlsx")]
+        with zipfile.ZipFile(
+            payload.file_path or io.BytesIO(payload.read_bytes())
+        ) as archive:
+            names = [
+                name for name in archive.namelist() if name.lower().endswith(".xlsx")
+            ]
             if len(names) != 1:
                 raise SourceValidationError(
                     "Planilha XLSX do Ideb não identificada", code="ideb_schema_changed"
                 )
             with archive.open(names[0]) as workbook_stream:
-                workbook = load_workbook(workbook_stream, read_only=True, data_only=True)
+                workbook = load_workbook(
+                    workbook_stream, read_only=True, data_only=True
+                )
                 sheet = workbook.active
                 rows = sheet.iter_rows(values_only=True)
                 headers: list[str] | None = None
                 for index, values in enumerate(rows, start=1):
                     if index == 10:
                         headers = [
-                            str(value).strip() if value is not None else "" for value in values
+                            str(value).strip() if value is not None else ""
+                            for value in values
                         ]
                         required = {"CO_MUNICIPIO", "REDE", *self.metrics.values()}
                         if not required.issubset(headers):
@@ -485,16 +532,25 @@ class InepIdebAdapter(_InepDownloadAdapter):
 
     def validate(self, records: list[MetricRecord]) -> None:
         if not records:
-            raise SourceValidationError("Ideb sem linhas para o recorte", code="empty_selection")
+            raise SourceValidationError(
+                "Ideb sem linhas para o recorte", code="empty_selection"
+            )
         if any(
-            item.year != self.year or item.value is not None and item.value < 0 for item in records
+            item.year != self.year or item.value is not None and item.value < 0
+            for item in records
         ):
-            raise SourceValidationError("Valor ou ano inválido no Ideb", code="ideb_invalid_value")
+            raise SourceValidationError(
+                "Valor ou ano inválido no Ideb", code="ideb_invalid_value"
+            )
 
-    def upsert(self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot
+    ) -> None:
         release = self._release(db, snapshot, self.year)
         if db.scalar(
-            select(EducationMetric.id).where(EducationMetric.release_id == release.id).limit(1)
+            select(EducationMetric.id)
+            .where(EducationMetric.release_id == release.id)
+            .limit(1)
         ):
             return
         for record in records:

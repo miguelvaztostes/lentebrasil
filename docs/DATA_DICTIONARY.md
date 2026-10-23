@@ -81,6 +81,21 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 
 ## Operação e qualidade
 
+## Saúde municipal
+
+| Tabela | Grão e campos centrais | Semântica pública |
+|---|---|---|
+| `health_establishments` | versão do estabelecimento CNES, município, tipo, vínculo SUS, situação e referência | cadastro administrativo; não prova atendimento ou operação em tempo real |
+| `health_beds` | versão por estabelecimento/tipo de leito/referência, leitos existentes e SUS | capacidade cadastrada; não é disponibilidade ou ocupação |
+| `health_services` | versão por estabelecimento/serviço/classificação/referência | serviço cadastrado; não é produção realizada |
+| `health_production` | município/período/tipo assistencial/procedimento/tipo de estabelecimento/setor SUS | quantidade e valor aprovado agregados; não representa pessoas únicas |
+| `health_epidemiology` | município/período/indicador/base territorial/categoria ou faixa etária | contagem agregada; `NULL` com `suppressed` para células 1–4 |
+
+As tabelas usam `(source_system, source_key, revision)` para histórico e `snapshot_id` para
+rastreabilidade. `sim_deaths_residence` conta óbitos não fetais segundo residência; não equivale a
+casos notificados, confirmados, incidência ou prevalência. Não há cruzamento publicado entre
+capítulo CID-10 e faixa etária.
+
 | Tabela | Campos | Semântica |
 |---|---|---|
 | `ingestion_runs` | início/fim, status, recebidos/aceitos/rejeitados, checksum, erro | Uma execução auditável por dataset. Erros são sanitizados antes da exposição pública. |

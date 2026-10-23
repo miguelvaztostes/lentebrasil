@@ -18,17 +18,24 @@ from urllib.parse import urlparse
 
 import httpx
 import rarfile
+from lente_api.models import EducationMetric, SourceSnapshot
 from openpyxl import load_workbook
 from pyxlsb import open_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from ingestion.adapters.base import USER_AGENT, FetchedPayload, SourceValidationError
 from ingestion.adapters.education import MetricRecord, _InepDownloadAdapter
-from lente_api.models import EducationMetric, SourceSnapshot
 
-SAEB_2023_URL = "https://download.inep.gov.br/saeb/resultados/planilha_de_resultados_2023.rar"
+SAEB_2023_URL = (
+    "https://download.inep.gov.br/saeb/resultados/planilha_de_resultados_2023.rar"
+)
 PNAE_2024_URL = (
     "https://www.gov.br/fnde/pt-br/acesso-a-informacao/acoes-e-programas/programas/"
     "pnae/consultas/repasses-financeiros-por-entidade-executora/"
@@ -39,8 +46,12 @@ MISSING = {"", "-", "...", "NA", "N/A", "NULL"}
 
 
 def normalize_fnde_municipality_name(value: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    normalized = re.sub(r"^PREF(?:EITURA)?\s+MUN(?:ICIPAL)?\s+DE\s+", "", normalized.upper())
+    normalized = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    )
+    normalized = re.sub(
+        r"^PREF(?:EITURA)?\s+MUN(?:ICIPAL)?\s+DE\s+", "", normalized.upper()
+    )
     return re.sub(r"[^A-Z0-9]+", " ", normalized).strip()
 
 
@@ -73,29 +84,35 @@ class _FederalEducationDownloadAdapter(_InepDownloadAdapter):
     )
     def discover(self) -> dict[str, Any]:
         self._validate_url(self.source_url)
-        with httpx.Client(
-            headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=60
-        ) as client:
-            with client.stream("GET", self.source_url, headers={"Range": "bytes=0-0"}) as response:
-                response.raise_for_status()
-                self._validate_url(str(response.url), redirect=True)
-                content_range = response.headers.get("content-range", "")
-                total_from_range = content_range.rsplit("/", 1)[-1] if "/" in content_range else ""
-                length = int(
-                    total_from_range
-                    if total_from_range.isdigit()
-                    else response.headers.get("content-length", "0")
+        with (
+            httpx.Client(
+                headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=60
+            ) as client,
+            client.stream(
+                "GET", self.source_url, headers={"Range": "bytes=0-0"}
+            ) as response,
+        ):
+            response.raise_for_status()
+            self._validate_url(str(response.url), redirect=True)
+            content_range = response.headers.get("content-range", "")
+            total_from_range = (
+                content_range.rsplit("/", 1)[-1] if "/" in content_range else ""
+            )
+            length = int(
+                total_from_range
+                if total_from_range.isdigit()
+                else response.headers.get("content-length", "0")
+            )
+            if length > self.max_download_bytes:
+                raise SourceValidationError(
+                    "Arquivo oficial excede o limite", code="download_too_large"
                 )
-                if length > self.max_download_bytes:
-                    raise SourceValidationError(
-                        "Arquivo oficial excede o limite", code="download_too_large"
-                    )
-                return {
-                    "url": str(response.url),
-                    "status": response.status_code,
-                    "content_type": response.headers.get("content-type"),
-                    "content_length": length,
-                }
+            return {
+                "url": str(response.url),
+                "status": response.status_code,
+                "content_type": response.headers.get("content-type"),
+                "content_length": length,
+            }
 
     @retry(
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.TransportError)),
@@ -131,7 +148,8 @@ class _FederalEducationDownloadAdapter(_InepDownloadAdapter):
                         total += len(chunk)
                         if total > self.max_download_bytes:
                             raise SourceValidationError(
-                                "Arquivo oficial excede o limite", code="download_too_large"
+                                "Arquivo oficial excede o limite",
+                                code="download_too_large",
                             )
                         stream.write(chunk)
             self._validate_download(target)
@@ -143,7 +161,9 @@ class _FederalEducationDownloadAdapter(_InepDownloadAdapter):
                     fetched_at=fetched_at,
                     original_format=self.original_format,
                     response_headers=headers,
-                    published_at=self.header_datetime_from_headers(headers, "last-modified"),
+                    published_at=self.header_datetime_from_headers(
+                        headers, "last-modified"
+                    ),
                 )
             ]
         except Exception:
@@ -154,17 +174,25 @@ class _FederalEducationDownloadAdapter(_InepDownloadAdapter):
         parsed = urlparse(url)
         if parsed.scheme != "https" or parsed.hostname not in self.allowed_hosts:
             code = "unsafe_redirect" if redirect else "unsafe_source_url"
-            raise SourceValidationError("Host do recurso oficial não permitido", code=code)
+            raise SourceValidationError(
+                "Host do recurso oficial não permitido", code=code
+            )
 
     def _validate_download(self, path: Path) -> None:
         raise NotImplementedError
 
     def _upsert_metrics(
-        self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot, year: int
+        self,
+        db: Session,
+        records: list[MetricRecord],
+        snapshot: SourceSnapshot,
+        year: int,
     ) -> None:
         release = self._release(db, snapshot, year)
         if db.scalar(
-            select(EducationMetric.id).where(EducationMetric.release_id == release.id).limit(1)
+            select(EducationMetric.id)
+            .where(EducationMetric.release_id == release.id)
+            .limit(1)
         ):
             return
         for record in records:
@@ -190,7 +218,7 @@ class InepSaebAdapter(_FederalEducationDownloadAdapter):
     dataset_code = "inep_saeb_municipal"
     source_url = SAEB_2023_URL
     year = 2023
-    allowed_hosts = {"download.inep.gov.br"}
+    allowed_hosts: ClassVar[set[str]] = {"download.inep.gov.br"}
     download_suffix = ".rar"
     original_format = "rar/xlsb"
     max_download_bytes = 100 * 1024 * 1024
@@ -212,20 +240,38 @@ class InepSaebAdapter(_FederalEducationDownloadAdapter):
     def _validate_download(self, path: Path) -> None:
         with path.open("rb") as stream:
             magic = stream.read(8)
-        if not (magic.startswith(b"Rar!\x1a\x07\x00") or magic == b"Rar!\x1a\x07\x01\x00"):
-            raise SourceValidationError("Recurso do Saeb não é RAR", code="unexpected_format")
+        if not (
+            magic.startswith(b"Rar!\x1a\x07\x00") or magic == b"Rar!\x1a\x07\x01\x00"
+        ):
+            raise SourceValidationError(
+                "Recurso do Saeb não é RAR", code="unexpected_format"
+            )
         with rarfile.RarFile(path) as archive:
             members = archive.infolist()
             if len(members) > 20 or sum(item.file_size for item in members) > 1024**3:
-                raise SourceValidationError("RAR excede limites seguros", code="unsafe_archive")
+                raise SourceValidationError(
+                    "RAR excede limites seguros", code="unsafe_archive"
+                )
             if any(
                 Path(item.filename).is_absolute() or ".." in Path(item.filename).parts
                 for item in members
             ):
-                raise SourceValidationError("Caminho inseguro no RAR", code="unsafe_archive")
-            if len([item for item in members if item.filename.lower().endswith(".xlsb")]) != 1:
                 raise SourceValidationError(
-                    "Planilha municipal do Saeb não identificada", code="saeb_schema_changed"
+                    "Caminho inseguro no RAR", code="unsafe_archive"
+                )
+            if (
+                len(
+                    [
+                        item
+                        for item in members
+                        if item.filename.lower().endswith(".xlsb")
+                    ]
+                )
+                != 1
+            ):
+                raise SourceValidationError(
+                    "Planilha municipal do Saeb não identificada",
+                    code="saeb_schema_changed",
                 )
 
     @contextmanager
@@ -254,16 +300,20 @@ class InepSaebAdapter(_FederalEducationDownloadAdapter):
                 )
                 if result.returncode:
                     raise SourceValidationError(
-                        "Falha ao extrair o RAR oficial do Saeb", code="saeb_extract_failed"
+                        "Falha ao extrair o RAR oficial do Saeb",
+                        code="saeb_extract_failed",
                     )
                 root = Path(directory).resolve()
                 files = [item for item in root.rglob("*") if item.is_file()]
                 if any(root not in item.resolve().parents for item in files):
-                    raise SourceValidationError("Extração saiu do staging", code="unsafe_archive")
+                    raise SourceValidationError(
+                        "Extração saiu do staging", code="unsafe_archive"
+                    )
                 workbooks = [item for item in files if item.suffix.lower() == ".xlsb"]
                 if len(workbooks) != 1:
                     raise SourceValidationError(
-                        "Planilha municipal do Saeb não identificada", code="saeb_schema_changed"
+                        "Planilha municipal do Saeb não identificada",
+                        code="saeb_schema_changed",
                     )
                 yield workbooks[0]
         finally:
@@ -273,9 +323,17 @@ class InepSaebAdapter(_FederalEducationDownloadAdapter):
     def parse_rows(self, rows: Iterable[list[Any]]) -> list[MetricRecord]:
         iterator = iter(rows)
         headers = [str(value or "").strip() for value in next(iterator, [])]
-        required = {"ANO_SAEB", "CO_MUNICIPIO", "DEPENDENCIA_ADM", "LOCALIZACAO", *self.metrics}
+        required = {
+            "ANO_SAEB",
+            "CO_MUNICIPIO",
+            "DEPENDENCIA_ADM",
+            "LOCALIZACAO",
+            *self.metrics,
+        }
         if not required.issubset(headers):
-            raise SourceValidationError("Schema do Saeb alterado", code="saeb_schema_changed")
+            raise SourceValidationError(
+                "Schema do Saeb alterado", code="saeb_schema_changed"
+            )
         records: list[MetricRecord] = []
         for values in iterator:
             row = dict(zip(headers, values, strict=False))
@@ -304,30 +362,46 @@ class InepSaebAdapter(_FederalEducationDownloadAdapter):
         return records
 
     def parse(self, payload: FetchedPayload) -> list[MetricRecord]:
-        with self._workbook_path(payload) as workbook_path:
-            with open_workbook(str(workbook_path)) as workbook:
-                if len(workbook.sheets) < 4:
-                    raise SourceValidationError(
-                        "Aba municipal do Saeb ausente", code="saeb_schema_changed"
-                    )
-                with workbook.get_sheet(4) as sheet:
-                    return self.parse_rows([cell.v for cell in row] for row in sheet.rows())
+        with (
+            self._workbook_path(payload) as workbook_path,
+            open_workbook(str(workbook_path)) as workbook,
+        ):
+            if len(workbook.sheets) < 4:
+                raise SourceValidationError(
+                    "Aba municipal do Saeb ausente", code="saeb_schema_changed"
+                )
+            with workbook.get_sheet(4) as sheet:
+                return self.parse_rows([cell.v for cell in row] for row in sheet.rows())
 
     def validate(self, records: list[MetricRecord]) -> None:
         if not records:
-            raise SourceValidationError("Saeb sem linhas para o recorte", code="empty_selection")
+            raise SourceValidationError(
+                "Saeb sem linhas para o recorte", code="empty_selection"
+            )
         keys = {
-            (item.municipality_code, item.network_code, item.stage_code, item.metric_code)
+            (
+                item.municipality_code,
+                item.network_code,
+                item.stage_code,
+                item.metric_code,
+            )
             for item in records
         }
         if len(keys) != len(records):
-            raise SourceValidationError("Métrica duplicada no Saeb", code="saeb_duplicate_metric")
+            raise SourceValidationError(
+                "Métrica duplicada no Saeb", code="saeb_duplicate_metric"
+            )
         if any(
-            item.year != self.year or item.value is not None and item.value < 0 for item in records
+            item.year != self.year or item.value is not None and item.value < 0
+            for item in records
         ):
-            raise SourceValidationError("Valor ou ano inválido no Saeb", code="saeb_invalid_value")
+            raise SourceValidationError(
+                "Valor ou ano inválido no Saeb", code="saeb_invalid_value"
+            )
 
-    def upsert(self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot
+    ) -> None:
         self._upsert_metrics(db, records, snapshot, self.year)
 
 
@@ -336,7 +410,7 @@ class FndePnaeAdapter(_FederalEducationDownloadAdapter):
     dataset_code = "fnde_pnae_municipal"
     source_url = PNAE_2024_URL
     year = 2024
-    allowed_hosts = {"www.gov.br"}
+    allowed_hosts: ClassVar[set[str]] = {"www.gov.br"}
     download_suffix = ".xlsx"
     original_format = "xlsx"
     max_download_bytes = 25 * 1024 * 1024
@@ -359,18 +433,24 @@ class FndePnaeAdapter(_FederalEducationDownloadAdapter):
         selected_municipalities: set[str],
         municipality_names: dict[tuple[str, str], str],
     ):
-        super().__init__(raw_data_dir=raw_data_dir, selected_municipalities=selected_municipalities)
+        super().__init__(
+            raw_data_dir=raw_data_dir, selected_municipalities=selected_municipalities
+        )
         self.municipality_names = municipality_names
 
     def _validate_download(self, path: Path) -> None:
         with path.open("rb") as stream:
             magic = stream.read(2)
         if magic != b"PK":
-            raise SourceValidationError("Recurso do PNAE não é XLSX", code="unexpected_format")
+            raise SourceValidationError(
+                "Recurso do PNAE não é XLSX", code="unexpected_format"
+            )
         self._validate_zip(path)
 
     def parse(self, payload: FetchedPayload) -> list[MetricRecord]:
-        source: Path | io.BytesIO = payload.file_path or io.BytesIO(payload.read_bytes())
+        source: Path | io.BytesIO = payload.file_path or io.BytesIO(
+            payload.read_bytes()
+        )
         workbook = load_workbook(source, read_only=True, data_only=True)
         try:
             sheet = workbook.active
@@ -380,7 +460,13 @@ class FndePnaeAdapter(_FederalEducationDownloadAdapter):
             for index, values in enumerate(rows, start=1):
                 if index == 5:
                     headers = [str(value or "").strip() for value in values[:5]]
-                    if headers != ["UF", "ENTIDADE_RESP", "ACAO", "QTDE_ALUNO", "VALOR_PREVISTO"]:
+                    if headers != [
+                        "UF",
+                        "ENTIDADE_RESP",
+                        "ACAO",
+                        "QTDE_ALUNO",
+                        "VALOR_PREVISTO",
+                    ]:
                         raise SourceValidationError(
                             "Schema do PNAE alterado", code="pnae_schema_changed"
                         )
@@ -420,17 +506,31 @@ class FndePnaeAdapter(_FederalEducationDownloadAdapter):
 
     def validate(self, records: list[MetricRecord]) -> None:
         if not records:
-            raise SourceValidationError("PNAE sem linhas para o recorte", code="empty_selection")
+            raise SourceValidationError(
+                "PNAE sem linhas para o recorte", code="empty_selection"
+            )
         keys = {
-            (item.municipality_code, item.metric_code, item.network_code, item.stage_code)
+            (
+                item.municipality_code,
+                item.metric_code,
+                item.network_code,
+                item.stage_code,
+            )
             for item in records
         }
         if len(keys) != len(records):
-            raise SourceValidationError("Métrica duplicada no PNAE", code="pnae_duplicate_metric")
+            raise SourceValidationError(
+                "Métrica duplicada no PNAE", code="pnae_duplicate_metric"
+            )
         if any(
-            item.year != self.year or item.value is not None and item.value < 0 for item in records
+            item.year != self.year or item.value is not None and item.value < 0
+            for item in records
         ):
-            raise SourceValidationError("Valor ou ano inválido no PNAE", code="pnae_invalid_value")
+            raise SourceValidationError(
+                "Valor ou ano inválido no PNAE", code="pnae_invalid_value"
+            )
 
-    def upsert(self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot
+    ) -> None:
         self._upsert_metrics(db, records, snapshot, self.year)

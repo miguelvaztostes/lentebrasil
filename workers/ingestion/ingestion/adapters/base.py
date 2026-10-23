@@ -13,15 +13,6 @@ from typing import Any
 
 import httpx
 from dateutil.parser import parse as parse_datetime
-from sqlalchemy import desc, select
-from sqlalchemy.orm import Session
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
-
 from lente_api.models import (
     DataQualityIssue,
     Dataset,
@@ -29,6 +20,14 @@ from lente_api.models import (
     IngestionRun,
     Observation,
     SourceSnapshot,
+)
+from sqlalchemy import desc, select
+from sqlalchemy.orm import Session
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
 )
 
 USER_AGENT = "LenteRibeirao/0.1 (+observatorio civico; contato pendente)"
@@ -133,7 +132,9 @@ class SourceAdapter(ABC):
     def validate(self, records: list[ObservationRecord]) -> None:
         """Raise SourceValidationError when publishing must be blocked."""
 
-    def after_validate(self, payload: FetchedPayload, records: list[ObservationRecord]) -> None:
+    def after_validate(
+        self, payload: FetchedPayload, records: list[ObservationRecord]
+    ) -> None:
         """Persist source-specific checkpoint metadata after validation succeeds."""
         return
 
@@ -247,7 +248,9 @@ class SourceAdapter(ABC):
     ) -> None:
         retrieved_at = snapshot.fetched_at
         for record in records:
-            indicator = db.scalar(select(Indicator).where(Indicator.code == record.indicator_code))
+            indicator = db.scalar(
+                select(Indicator).where(Indicator.code == record.indicator_code)
+            )
             if indicator is None:
                 raise SourceValidationError(
                     f"Indicador não cadastrado: {record.indicator_code}",
@@ -320,7 +323,9 @@ class SourceAdapter(ABC):
                 payload.original_format,
                 re.sub(r"[^a-zA-Z0-9_-]", "_", payload.original_format),
             )
-            filename = f"{payload.fetched_at:%Y%m%dT%H%M%SZ}-{payload.sha256[:16]}.{suffix}"
+            filename = (
+                f"{payload.fetched_at:%Y%m%dT%H%M%SZ}-{payload.sha256[:16]}.{suffix}"
+            )
             path = directory / filename
             if not path.exists():
                 if payload.file_path is not None:
@@ -369,7 +374,8 @@ class SourceAdapter(ABC):
         return {
             key: value
             for key, value in response.headers.items()
-            if key.lower() in {"etag", "last-modified", "content-type", "content-length"}
+            if key.lower()
+            in {"etag", "last-modified", "content-type", "content-length"}
         }
 
     @staticmethod

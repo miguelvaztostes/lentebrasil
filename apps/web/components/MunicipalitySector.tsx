@@ -6,10 +6,12 @@ import { DataCard } from "./DataCard";
 import { ErrorState, LoadingState } from "./LoadingState";
 import { fetchJson, type MunicipalitySummary } from "@/lib/api";
 import { EducationDashboard } from "./EducationDashboard";
+import { HealthDashboard } from "./HealthDashboard";
 import { TransparencyDashboard } from "./TransparencyDashboard";
 
 export function MunicipalitySector({ code, sector }: { code: string; sector: string }) {
   if (sector === "educacao") return <EducationDashboard code={code} />;
+  if (sector === "saude") return <HealthDashboard code={code} />;
   if (sector === "financas-publicas" || sector === "transparencia") return <TransparencyDashboard municipalityCode={code} />;
   return <GenericMunicipalitySector code={code} sector={sector} />;
 }

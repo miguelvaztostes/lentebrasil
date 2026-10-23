@@ -276,3 +276,24 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
 - Atas PNCP foram verificadas com 39 registros no recorte municipal de 01–22/10/2026; PCA
   respondeu 204. Permanecem complementos fora dos totais, assim como CGU sem token e portal
   municipal sem exportação homologada.
+
+## Etapa 3C — saúde municipal — 22/10/2026
+
+- O ZIP oficial definitivo do SIM 2024 foi validado com 98.076.266 bytes compactados,
+  550.842.628 bytes descompactados e SHA-256
+  `13db250c90908e85d1ef9fb9cd7caa08583fb1912108b0f3260605aca0e9b787`.
+- Três amostras municipais foram reconciliadas: Ribeirão Preto 5.272 óbitos, Campinas 8.972 e
+  São Paulo 87.438. As somas independentes por capítulo CID-10 e faixa etária coincidiram com o
+  total de cada município.
+- O conector não persiste o CSV: agrega em streaming por residência, remove o arquivo temporário,
+  não transporta campos nominais e suprime contagens de 1 a 4.
+- A API separa rede cadastrada, leitos cadastrados, produção, mortalidade e gastos. SIA/SIH e
+  SIOPS permanecem explicitamente indisponíveis; a falha de acesso ao host DEMAS impediu validar
+  respostas e schema, portanto a documentação Swagger foi tratada apenas como descoberta.
+- Carga PostgreSQL descartável: 93 agregados, 31 por município; reexecução aceitou zero itens,
+  manteve revisão 1, um snapshot e nenhum `storage_path` bruto. A API respondeu HTTP 200 para
+  visão geral, paginação e CSV; Ribeirão Preto retornou o total reconciliado de 5.272.
+- Migração limpa e ciclo `0010 → 0009 → 0010` aprovados. Backend: 36 testes aprovados; Ruff e
+  formatação globais aprovados após normalizar nove arquivos legados exigidos pela CI.
+- Frontend: teste de conteúdo, TypeScript e build de produção Next.js aprovados; a rota dinâmica
+  `/municipios/[ibgeCode]/[setor]` renderiza o painel de saúde quando `setor=saude`.

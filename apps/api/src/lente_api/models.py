@@ -636,6 +636,142 @@ class Transfer(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1)
 
 
+class HealthEstablishment(Base):
+    __tablename__ = "health_establishments"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_health_establishment_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(160), index=True)
+    cnes_code: Mapped[str] = mapped_column(String(7), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(320))
+    facility_type_code: Mapped[str | None] = mapped_column(String(40), index=True)
+    facility_type_name: Mapped[str | None] = mapped_column(String(240))
+    management_scope: Mapped[str | None] = mapped_column(String(40))
+    sus_linked: Mapped[bool | None] = mapped_column(Boolean, index=True)
+    active: Mapped[bool | None] = mapped_column(Boolean, index=True)
+    reference_date: Mapped[date] = mapped_column(Date, index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class HealthBed(Base):
+    __tablename__ = "health_beds"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", "revision", name="uq_health_bed_revision"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    establishment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("health_establishments.id"), index=True
+    )
+    bed_type_code: Mapped[str] = mapped_column(String(60), index=True)
+    bed_type_name: Mapped[str] = mapped_column(String(240))
+    existing_count: Mapped[int | None] = mapped_column(Integer)
+    sus_count: Mapped[int | None] = mapped_column(Integer)
+    reference_date: Mapped[date] = mapped_column(Date, index=True)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class HealthService(Base):
+    __tablename__ = "health_services"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_health_service_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    establishment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("health_establishments.id"), index=True
+    )
+    service_code: Mapped[str] = mapped_column(String(60), index=True)
+    service_name: Mapped[str] = mapped_column(String(320))
+    classification_code: Mapped[str | None] = mapped_column(String(60))
+    classification_name: Mapped[str | None] = mapped_column(String(320))
+    sus_available: Mapped[bool | None] = mapped_column(Boolean, index=True)
+    reference_date: Mapped[date] = mapped_column(Date, index=True)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class HealthProduction(Base):
+    __tablename__ = "health_production"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_health_production_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    period_start: Mapped[date] = mapped_column(Date, index=True)
+    period_end: Mapped[date] = mapped_column(Date, index=True)
+    care_type: Mapped[str] = mapped_column(String(60), index=True)
+    procedure_code: Mapped[str | None] = mapped_column(String(40), index=True)
+    procedure_name: Mapped[str | None] = mapped_column(String(320))
+    facility_type: Mapped[str | None] = mapped_column(String(160), index=True)
+    sus_sector: Mapped[str | None] = mapped_column(String(80), index=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    approved_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class HealthEpidemiology(Base):
+    __tablename__ = "health_epidemiology"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_health_epidemiology_revision"
+        ),
+        Index(
+            "ix_health_epidemiology_municipality_period",
+            "municipality_ibge_code",
+            "period_start",
+            "period_end",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    indicator_code: Mapped[str] = mapped_column(String(120), index=True)
+    period_start: Mapped[date] = mapped_column(Date, index=True)
+    period_end: Mapped[date] = mapped_column(Date, index=True)
+    geography_basis: Mapped[str] = mapped_column(String(40), index=True)
+    category_code: Mapped[str] = mapped_column(String(80), index=True)
+    category_name: Mapped[str] = mapped_column(String(240))
+    age_band: Mapped[str] = mapped_column(String(40), index=True)
+    count: Mapped[int | None] = mapped_column(Integer)
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    disclosure_threshold: Mapped[int] = mapped_column(Integer)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class SourceSnapshot(Base):
     __tablename__ = "source_snapshots"
 

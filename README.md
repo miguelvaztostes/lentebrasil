@@ -142,10 +142,21 @@ Principais rotas:
 - `GET /api/v1/transparency/transfers?municipality=3543402`
 - `GET /api/v1/transparency/exports/fiscal-statements.csv?municipality=3543402`
 - `GET /api/v1/transparency/exports/procurements.csv?municipality=3543402`
+- `GET /api/v1/health/overview?municipality=3543402&year=2024`
+- `GET /api/v1/health/epidemiology?municipality=3543402&year=2024`
+- `GET /api/v1/health/establishments?municipality=3543402`
+- `GET /api/v1/health/production?municipality=3543402&year=2024`
+- `GET /api/v1/health/exports/epidemiology.csv?municipality=3543402&year=2024`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
 O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando
 Ribeirão Preto quando o parâmetro é omitido.
+
+O conector `sim_mortality` publica somente agregados municipais seguros e não persiste o
+microdado. Auditoria, direitos, cobertura e limitações estão em `docs/HEALTH_SOURCES.md`.
+Ele não integra a carga padrão da demo porque o ZIP anual tem cerca de 98 MB; a execução
+controlada usa `python -m ingestion.cli ingest --source sim_mortality --municipalities 3543402
+--start-year 2024 --end-year 2024` dentro do container de API/ingestão.
 
 ## Testes
 
