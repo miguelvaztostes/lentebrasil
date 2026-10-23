@@ -4,6 +4,7 @@ import csv
 import io
 import zipfile
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 from ingestion.adapters.base import FetchedPayload
@@ -11,9 +12,107 @@ from ingestion.adapters.health import (
     CnesBedsAdapter,
     SimMortalityAdapter,
     SinascBirthsAdapter,
+    SiopsHealthExpenseAdapter,
     cid_chapter,
     sim_age_band,
 )
+
+
+def test_siops_preserves_decimal_phases_and_discards_unselected_rows(tmp_path: Path) -> None:
+    fields = [
+        "Ano",
+        "Cod_IBGE",
+        "Estado",
+        "Cód.Município",
+        "Município",
+        "UF",
+        "Fonte",
+        "Subfuncao",
+        "Codigo",
+        "Descricao",
+        "Fase",
+        "Valor",
+        "Data_Transmissao",
+        "Data_Homologacao",
+    ]
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fields, delimiter=";", quoting=csv.QUOTE_ALL)
+    writer.writeheader()
+    phases = {
+        "Dotação Inicial": "100.01",
+        "Dotação Atualizada": "120.02",
+        "Despesas Empenhadas": "110.03",
+        "Despesas Liquidadas": "105.04",
+        "Despesas Pagas": "99.05",
+    }
+    for phase, amount in phases.items():
+        writer.writerow(
+            {
+                "Ano": "2025",
+                "Cod_IBGE": "35",
+                "Cód.Município": "354340",
+                "Fonte": "Receitas de Impostos",
+                "Subfuncao": "Subfunção - 301 Atenção Básica",
+                "Codigo": "3.0.00.00.00.00",
+                "Descricao": "DESPESAS CORRENTES",
+                "Fase": phase,
+                "Valor": amount,
+                "Data_Homologacao": "2026-02-06 09:00:14",
+            }
+        )
+    writer.writerow(
+        {
+            "Ano": "2025",
+            "Cod_IBGE": "35",
+            "Cód.Município": "350950",
+            "Fonte": "Outra",
+            "Subfuncao": "Subfunção - 302 Assistência Hospitalar",
+            "Codigo": "3.0.00.00.00.00",
+            "Descricao": "DESPESAS CORRENTES",
+            "Fase": "Despesas Pagas",
+            "Valor": "999.99",
+            "Data_Homologacao": "2026-02-06 09:00:14",
+        }
+    )
+    archive_path = tmp_path / "siops.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as target:
+        target.writestr("siops.csv", ("\ufeff" + output.getvalue()).encode("utf-8"))
+    adapter = SiopsHealthExpenseAdapter(
+        raw_data_dir=tmp_path,
+        municipality_crosswalk={"354340": "3543402"},
+        selected_municipalities={"3543402"},
+    )
+    records = adapter.parse(
+        FetchedPayload(
+            content=None,
+            file_path=archive_path,
+            url="https://portalfns.saude.gov.br/fixture.zip",
+            fetched_at=datetime.now(UTC),
+            original_format="csv.zip",
+            persist_raw=False,
+        )
+    )
+    adapter.validate(records)
+    assert len(records) == 5
+    assert {record.phase for record in records} == {
+        "initial_budget",
+        "updated_budget",
+        "committed",
+        "liquidated",
+        "paid",
+    }
+    assert next(record.amount for record in records if record.phase == "paid") == Decimal("99.05")
+    assert all(record.municipality_code == "3543402" for record in records)
+    assert not archive_path.exists()
+
+
+def test_siops_rejects_unsafe_urls() -> None:
+    try:
+        SiopsHealthExpenseAdapter._validate_url("https://example.com/siops.zip")
+    except ValueError as error:
+        assert getattr(error, "code", None) == "unsafe_source_url"
+    else:
+        raise AssertionError("URL SIOPS fora da allowlist foi aceita")
 
 
 def test_sim_classifies_cid10_chapters_and_encoded_age() -> None:

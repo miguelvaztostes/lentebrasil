@@ -12,7 +12,7 @@ Verificação realizada em 22/10/2026. O inventário é uma lista de candidatos;
 | SIM | [dataset oficial](https://dadosabertos.saude.gov.br/dataset/sim) e ZIP anual | dados abertos anonimizados; atribuição ao MS | **integrada** para mortalidade não fetal agregada por município de residência, capítulo CID-10 ou faixa etária ampla |
 | SINASC | [dataset oficial](https://dadosabertos.saude.gov.br/dataset/sistema-de-informacao-sobre-nascidos-vivos-sinasc) e ZIP anual | dados abertos do SUS; atribuição ao MS | **integrada** para nascidos vivos de 2024 agregados por município de residência |
 | SISAB | portal e relatórios e-Gestor APS | acesso e granularidade variam | restrito/relatório; não integrado |
-| SIOPS | portal e arquivos/consultas oficiais | dados fiscais públicos | candidato auditado; schema de extração não homologado; gasto em saúde permanece indisponível |
+| SIOPS | [downloads oficiais do FNS](https://portalfns.saude.gov.br/siops/siops-downloads/), ZIP/CSV municipal | dados fiscais públicos | **integrada** para o fechamento de 2025 (6º bimestre), preservando fonte, subfunção, natureza e fase contábil |
 | ANS | [diretório DBC de beneficiários municipais](https://dadosabertos.ans.gov.br/FTP/Base_de_dados/Microdados/dados_dbc/beneficiarios/municipios/) | dados abertos conforme metadados ANS | arquivos mensais verificados no índice, sem parser DBC homologado |
 | Epidemiologia (arboviroses e outros) | endpoints documentados no Swagger e conjuntos OpenDataSUS | depende do conjunto | candidatos; não publicados sem validar definição (notificado/confirmado), período, revisão e risco de reidentificação |
 
@@ -68,4 +68,22 @@ Não se calculam taxas padronizadas por população nesta etapa: denominador, an
 
 ## Limitações verificadas
 
-O host da API Dados Abertos do Ministério da Saúde apresentou reset/erro de gateway para chamadas diretas a partir do ambiente de execução. Arquivos oficiais estáveis permitiram homologar leitos e SINASC sem presumir que o Swagger é uma API operacional. SIA/SUS, SIH/SUS, serviços CNES, SIOPS, SISAB, ANS e conjuntos epidemiológicos adicionais ficam explicitamente indisponíveis na interface, nunca com valor zero.
+O host da API Dados Abertos do Ministério da Saúde apresentou reset/erro de gateway para chamadas diretas a partir do ambiente de execução. Arquivos oficiais estáveis permitiram homologar leitos, SINASC e SIOPS sem presumir que o Swagger é uma API operacional. SIA/SUS, SIH/SUS, serviços CNES, SISAB, ANS e conjuntos epidemiológicos adicionais ficam explicitamente indisponíveis na interface, nunca com valor zero.
+
+Em 23/10/2026, tentativas `HEAD` e `GET` ao host oficial `ftp.datasus.gov.br`, inclusive para o caminho esperado `SIHSUS/200801_/Dados/RDSP2501.dbc`, expiraram por timeout de conexão neste ambiente. Sem baixar o DBC não foi possível validar hash, dicionário, período ou três amostras; por isso SIA/SIH não foram promovidos a integração apenas com base no padrão nominal dos arquivos.
+
+## SIOPS municipal 2025 homologado
+
+- Página oficial: `https://portalfns.saude.gov.br/siops/siops-downloads/`.
+- Recurso: ZIP “Despesas por Fonte/Subfunção/Natureza Municipais 2025 — 6º Bimestre”, publicado pelo FNS em 21/07/2026.
+- Observado em 23/10/2026: 64.105.064 bytes compactados, CSV UTF-8 de 1.878.084.870 bytes e SHA-256 `67723683052e6dca7b344c8b99c7243d3791829b550b8de3a534442dbaaa6c5d`.
+- A carga controlada validou e publicou 6.013 linhas para Ribeirão Preto, Campinas e São Paulo. Valores usam `Decimal`; o ZIP temporário é removido após o processamento.
+- O 6º bimestre é acumulado anual. Dotação inicial/atualizada, empenhada, liquidada, paga e restos a pagar são fases distintas e nunca são somadas entre si.
+
+Reconciliação do nível total (`3.0.00.00.00.00` + `4.0.00.00.00.00`) diretamente no CSV:
+
+| Município | Dotação atualizada | Empenhada | Liquidada | Paga |
+|---|---:|---:|---:|---:|
+| Ribeirão Preto/SP (3543402) | R$ 1.190.385.069,88 | R$ 1.125.539.705,55 | R$ 1.071.570.767,14 | R$ 1.031.794.155,24 |
+| Campinas/SP (3509502) | R$ 2.564.706.611,08 | R$ 2.341.398.894,58 | R$ 2.286.956.653,97 | R$ 2.223.012.417,95 |
+| São Paulo/SP (3550308) | R$ 25.625.569.084,01 | R$ 25.173.757.629,24 | R$ 24.099.774.787,65 | R$ 24.080.276.794,75 |

@@ -7,6 +7,11 @@ import { ErrorState, LoadingState } from "./LoadingState";
 const formatCount = (value: number | null) =>
   value == null ? "Não disponível" : value.toLocaleString("pt-BR");
 
+const formatCurrency = (value: string | null) =>
+  value == null
+    ? "Não disponível"
+    : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(Number(value));
+
 export function HealthDashboard({ code }: { code: string }) {
   const [year, setYear] = useState("2024");
   const [data, setData] = useState<HealthOverview | null>(null);
@@ -47,12 +52,13 @@ export function HealthDashboard({ code }: { code: string }) {
         </label>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Metric label="Estabelecimentos CNES" value={formatCount(data.network.establishments)} method={data.network.methodology} />
         <Metric label="Leitos cadastrados" value={formatCount(data.network.registered_beds)} method={data.network.methodology} />
         <Metric label={`Óbitos SIM ${year}`} value={formatCount(data.epidemiology.total_deaths)} method={data.epidemiology.methodology} />
         <Metric label={`Nascidos vivos SINASC ${year}`} value={formatCount(data.epidemiology.live_births)} method="Registros do SINASC agregados pelo município de residência." />
         <Metric label="Produção SIA/SIH" value="Não disponível" method={data.production.methodology} />
+        <Metric label={`Despesa paga SIOPS ${data.health_spending.reference_year ?? ""}`} value={formatCurrency(data.health_spending.value)} method={data.health_spending.methodology} />
       </section>
 
       <section>
@@ -66,7 +72,7 @@ export function HealthDashboard({ code }: { code: string }) {
 
       <section className="grid gap-5 lg:grid-cols-2">
         <article className="card p-6"><p className="eyebrow">Produção assistencial</p><h2 className="mt-2 text-2xl font-black">SIA/SUS e SIH/SUS</h2><p className="mt-4 text-sm leading-6 text-ink/65">{data.production.methodology}</p></article>
-        <article className="card p-6"><p className="eyebrow">Financiamento</p><h2 className="mt-2 text-2xl font-black">Gastos municipais em saúde</h2><p className="mt-4 text-sm leading-6 text-ink/65">{data.health_spending.methodology}</p></article>
+        <article className="card p-6"><p className="eyebrow">Financiamento</p><h2 className="mt-2 text-2xl font-black">Gastos municipais em saúde</h2><p className="mt-3 text-3xl font-black">{formatCurrency(data.health_spending.value)}</p><p className="mt-4 text-sm leading-6 text-ink/65">{data.health_spending.methodology}</p>{data.health_spending.availability === "available" && <a className="mt-4 inline-block text-sm font-bold text-teal underline" href={`${API_BASE}/v1/health/spending?municipality=${encodeURIComponent(code)}&year=2025&phase=paid&top_level_only=true`} target="_blank" rel="noreferrer">Consultar fases e rubricas na API</a>}</article>
       </section>
 
       <details className="card p-6">

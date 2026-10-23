@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
+import re
 import tempfile
+import unicodedata
 import zipfile
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from lente_api.models import (
+    BudgetAccount,
+    Dataset,
+    FiscalStatement,
     HealthBed,
     HealthEpidemiology,
     HealthEstablishment,
@@ -30,18 +38,22 @@ from ingestion.adapters.base import (
 )
 
 SIM_CATALOG_URL = "https://dadosabertos.saude.gov.br/dataset/sim"
-SIM_2024_URL = (
-    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SIM/csv/DO24OPEN_csv.zip"
-)
+SIM_2024_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SIM/csv/DO24OPEN_csv.zip"
 CNES_BEDS_CATALOG_URL = "https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos"
-CNES_BEDS_2026_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/Leitos_SUS/Leitos_csv_2026.zip"
+CNES_BEDS_2026_URL = (
+    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/Leitos_SUS/Leitos_csv_2026.zip"
+)
 SINASC_CATALOG_URL = (
-    "https://dadosabertos.saude.gov.br/dataset/"
-    "sistema-de-informacao-sobre-nascidos-vivos-sinasc"
+    "https://dadosabertos.saude.gov.br/dataset/sistema-de-informacao-sobre-nascidos-vivos-sinasc"
 )
 SINASC_2024_URL = (
-    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
-    "SINASC/csv/SINASC_2024_csv.zip"
+    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SINASC/csv/SINASC_2024_csv.zip"
+)
+SIOPS_CATALOG_URL = "https://portalfns.saude.gov.br/siops/siops-downloads/"
+SIOPS_2025_URL = (
+    "https://portalfns.saude.gov.br/wp-content/uploads/2026/07/"
+    "SIOPS-%E2%80%93-Despesas-por-Fonte-Subfuncao-Natureza-Municipais-"
+    "2025-6o-Bimestre_202607211532.zip"
 )
 
 CID_CHAPTERS: tuple[tuple[str, str], ...] = (
@@ -109,6 +121,392 @@ class CnesBedRecord:
     existing_count: int
     sus_count: int
     document_url: str
+
+
+@dataclass(slots=True)
+class SiopsExpenseRecord:
+    source_key: str
+    municipality_code: str
+    year: int
+    funding_source: str
+    subfunction_code: str
+    subfunction_name: str
+    nature_code: str
+    nature_name: str
+    phase: str
+    amount: Decimal
+    homologated_at: datetime | None
+    document_url: str
+
+
+class SiopsHealthExpenseAdapter(SourceAdapter):
+    """SIOPS municipal expenses, preserving phase and accounting hierarchy."""
+
+    source_name = "Ministério da Saúde/FNS — SIOPS"
+    dataset_code = "siops_health_expenses"
+    allowed_host = "portalfns.saude.gov.br"
+    max_download_bytes = 80_000_000
+    max_uncompressed_bytes = 2_200_000_000
+    required_fields: ClassVar[set[str]] = {
+        "Ano",
+        "Cod_IBGE",
+        "Cód.Município",
+        "Fonte",
+        "Subfuncao",
+        "Codigo",
+        "Descricao",
+        "Fase",
+        "Valor",
+        "Data_Homologacao",
+    }
+    phase_codes: ClassVar[dict[str, str]] = {
+        "despesas orcadas": "budgeted",
+        "dotacao inicial": "initial_budget",
+        "dotacao atualizada": "updated_budget",
+        "despesas empenhadas": "committed",
+        "despesas liquidadas": "liquidated",
+        "despesas pagas": "paid",
+        "inscritas em restos a pagar nao processados": "unpaid_commitments",
+    }
+
+    def __init__(
+        self,
+        *,
+        raw_data_dir: Path,
+        municipality_crosswalk: dict[str, str],
+        selected_municipalities: set[str],
+        year: int = 2025,
+    ):
+        super().__init__(raw_data_dir=raw_data_dir)
+        if year != 2025:
+            raise ValueError("Somente o arquivo municipal SIOPS 2025 foi homologado")
+        self.year = year
+        self.selected = selected_municipalities
+        self.external_selected = {
+            external: canonical
+            for external, canonical in municipality_crosswalk.items()
+            if canonical in selected_municipalities
+        }
+        if set(self.external_selected.values()) != selected_municipalities:
+            missing = sorted(selected_municipalities - set(self.external_selected.values()))
+            raise ValueError(f"Municípios sem crosswalk SIOPS: {missing}")
+
+    @classmethod
+    def _validate_url(cls, value: str) -> None:
+        parsed = urlparse(value)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != cls.allowed_host
+            or parsed.path
+            != (
+                "/wp-content/uploads/2026/07/"
+                "SIOPS-%E2%80%93-Despesas-por-Fonte-Subfuncao-Natureza-"
+                "Municipais-2025-6o-Bimestre_202607211532.zip"
+            )
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise SourceValidationError("URL SIOPS não permitida", code="unsafe_source_url")
+
+    @staticmethod
+    def _normalized(value: str) -> str:
+        return (
+            "".join(
+                character
+                for character in unicodedata.normalize("NFKD", value)
+                if not unicodedata.combining(character)
+            )
+            .strip()
+            .lower()
+        )
+
+    def discover(self) -> dict[str, Any]:
+        self._validate_url(SIOPS_2025_URL)
+        response = httpx.head(
+            SIOPS_2025_URL,
+            follow_redirects=True,
+            timeout=60,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+        self._validate_url(str(response.url))
+        size = int(response.headers.get("content-length", "0"))
+        if not 0 < size <= self.max_download_bytes:
+            raise SourceValidationError(
+                "Tamanho do recurso SIOPS inválido", code="resource_size_invalid"
+            )
+        return {
+            "catalog": SIOPS_CATALOG_URL,
+            "resource": SIOPS_2025_URL,
+            "year": self.year,
+            "period": 6,
+            "content_length": size,
+        }
+
+    def fetch(self) -> list[FetchedPayload]:
+        self._validate_url(SIOPS_2025_URL)
+        directory = self.raw_data_dir / "_stage" / self.dataset_code
+        directory.mkdir(parents=True, exist_ok=True)
+        try:
+            with httpx.stream(
+                "GET",
+                SIOPS_2025_URL,
+                headers={"User-Agent": USER_AGENT},
+                follow_redirects=True,
+                timeout=300,
+            ) as response:
+                response.raise_for_status()
+                self._validate_url(str(response.url))
+                with tempfile.NamedTemporaryFile(
+                    dir=directory, prefix="siops-", suffix=".zip.part", delete=False
+                ) as target:
+                    path = Path(target.name)
+                    total = 0
+                    digest = hashlib.sha256()
+                    for chunk in response.iter_bytes(1024 * 1024):
+                        total += len(chunk)
+                        if total > self.max_download_bytes:
+                            path.unlink(missing_ok=True)
+                            raise SourceValidationError(
+                                "Arquivo SIOPS excede o limite",
+                                code="resource_too_large",
+                            )
+                        digest.update(chunk)
+                        target.write(chunk)
+                return [
+                    FetchedPayload(
+                        content=None,
+                        file_path=path,
+                        url=str(response.url),
+                        fetched_at=datetime.now(UTC),
+                        original_format="csv.zip",
+                        response_headers=self.selected_headers(response),
+                        published_at=self.header_datetime(response, "last-modified"),
+                        persist_raw=False,
+                        resource_version=response.headers.get("etag"),
+                        sha256_value=digest.hexdigest(),
+                    )
+                ]
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            raise SourceValidationError(
+                "Falha de rede ao baixar SIOPS", code="network_error"
+            ) from exc
+
+    def parse(self, payload: FetchedPayload) -> list[SiopsExpenseRecord]:
+        if payload.file_path is None:
+            raise SourceValidationError("Payload SIOPS sem arquivo", code="empty_payload")
+        records: list[SiopsExpenseRecord] = []
+        try:
+            with zipfile.ZipFile(payload.file_path) as archive:
+                members = [
+                    item for item in archive.infolist() if item.filename.lower().endswith(".csv")
+                ]
+                if len(members) != 1:
+                    raise SourceValidationError(
+                        "Arquivo SIOPS deve conter um único CSV", code="schema_drift"
+                    )
+                member = members[0]
+                if member.file_size > self.max_uncompressed_bytes or (
+                    member.compress_size and member.file_size / member.compress_size > 100
+                ):
+                    raise SourceValidationError("ZIP SIOPS excede limites seguros", code="zip_bomb")
+                with archive.open(member) as raw:
+                    reader = csv.DictReader(
+                        io.TextIOWrapper(raw, encoding="utf-8-sig", errors="strict", newline=""),
+                        delimiter=";",
+                    )
+                    fields = set(reader.fieldnames or [])
+                    if not self.required_fields.issubset(fields):
+                        raise SourceValidationError(
+                            "Cabeçalho SIOPS alterado",
+                            code="schema_drift",
+                            details={"missing": sorted(self.required_fields - fields)},
+                        )
+                    for row in reader:
+                        municipality = self.external_selected.get(row["Cód.Município"].strip())
+                        if municipality is None:
+                            continue
+                        if int(row["Ano"]) != self.year:
+                            raise SourceValidationError(
+                                "Exercício SIOPS inesperado", code="period_mismatch"
+                            )
+                        phase = self.phase_codes.get(self._normalized(row["Fase"]))
+                        if phase is None:
+                            raise SourceValidationError(
+                                "Fase contábil SIOPS desconhecida",
+                                code="schema_drift",
+                                details={"phase": row["Fase"]},
+                            )
+                        subfunction = row["Subfuncao"].strip()
+                        match = re.search(r"\b(\d{3})\b", subfunction)
+                        if match is None and self._normalized(subfunction) != (
+                            "subfuncao - demais subfuncoes"
+                        ):
+                            raise SourceValidationError(
+                                "Subfunção SIOPS sem código", code="schema_drift"
+                            )
+                        subfunction_code = match.group(1) if match else "other"
+                        try:
+                            amount = Decimal(row["Valor"].strip())
+                        except InvalidOperation as exc:
+                            raise SourceValidationError(
+                                "Valor monetário SIOPS inválido", code="invalid_amount"
+                            ) from exc
+                        homologated = row["Data_Homologacao"].strip()
+                        homologated_at = (
+                            datetime.fromisoformat(homologated).replace(
+                                tzinfo=ZoneInfo("America/Sao_Paulo")
+                            )
+                            if homologated
+                            else None
+                        )
+                        identity = "|".join(
+                            (
+                                municipality,
+                                str(self.year),
+                                row["Fonte"].strip(),
+                                subfunction,
+                                row["Codigo"].strip(),
+                                phase,
+                            )
+                        )
+                        records.append(
+                            SiopsExpenseRecord(
+                                source_key=hashlib.sha256(identity.encode()).hexdigest(),
+                                municipality_code=municipality,
+                                year=self.year,
+                                funding_source=row["Fonte"].strip(),
+                                subfunction_code=subfunction_code,
+                                subfunction_name=subfunction,
+                                nature_code=row["Codigo"].strip(),
+                                nature_name=row["Descricao"].strip(),
+                                phase=phase,
+                                amount=amount,
+                                homologated_at=homologated_at,
+                                document_url=SIOPS_2025_URL,
+                            )
+                        )
+        finally:
+            payload.file_path.unlink(missing_ok=True)
+        return records
+
+    def validate(self, records: list[SiopsExpenseRecord]) -> None:
+        if not records:
+            raise SourceValidationError("SIOPS sem linhas para o recorte", code="empty_selection")
+        keys = [record.source_key for record in records]
+        if len(keys) != len(set(keys)):
+            raise SourceValidationError("Chave SIOPS duplicada", code="duplicate_key")
+        present = {record.municipality_code for record in records}
+        if present != self.selected:
+            raise SourceValidationError(
+                "SIOPS não cobriu todos os municípios solicitados",
+                code="incomplete_selection",
+                details={"missing": sorted(self.selected - present)},
+            )
+        for municipality in present:
+            phases = {
+                record.phase
+                for record in records
+                if record.municipality_code == municipality
+                and record.nature_code in {"3.0.00.00.00.00", "4.0.00.00.00.00"}
+            }
+            required = {
+                "initial_budget",
+                "updated_budget",
+                "committed",
+                "liquidated",
+                "paid",
+            }
+            if not required.issubset(phases):
+                raise SourceValidationError(
+                    "SIOPS sem fases essenciais no nível total",
+                    code="aggregate_mismatch",
+                    details={
+                        "municipality": municipality,
+                        "missing": sorted(required - phases),
+                    },
+                )
+
+    def checkpoint_metadata(self) -> dict[str, Any]:
+        return {"year": self.year, "period": 6, "municipalities": sorted(self.selected)}
+
+    def upsert(
+        self, db: Session, records: list[SiopsExpenseRecord], snapshot: SourceSnapshot
+    ) -> None:
+        accounts: dict[tuple[str, str, str, str], BudgetAccount] = {}
+        for record in records:
+            account_identity = (
+                record.funding_source,
+                record.subfunction_code,
+                record.subfunction_name,
+                record.nature_code,
+            )
+            account = accounts.get(account_identity)
+            if account is None:
+                digest = hashlib.sha256("|".join(account_identity).encode()).hexdigest()[:20]
+                top_level = record.nature_code in {
+                    "3.0.00.00.00.00",
+                    "4.0.00.00.00.00",
+                }
+                account_code = f"{'total' if top_level else 'detail'}|{digest}"
+                account = db.scalar(
+                    select(BudgetAccount).where(
+                        BudgetAccount.source_system == "siops",
+                        BudgetAccount.account_code == account_code,
+                    )
+                )
+                if account is None:
+                    account = BudgetAccount(
+                        source_system="siops",
+                        account_code=account_code,
+                        name=record.nature_name,
+                        account_type="health_expense",
+                        hierarchy={
+                            "funding_source": record.funding_source,
+                            "subfunction_code": record.subfunction_code,
+                            "subfunction_name": record.subfunction_name,
+                            "nature_code": record.nature_code,
+                            "top_level": top_level,
+                        },
+                    )
+                    db.add(account)
+                    db.flush()
+                accounts[account_identity] = account
+            previous = db.scalar(
+                select(FiscalStatement)
+                .where(
+                    FiscalStatement.source_system == "siops",
+                    FiscalStatement.source_key == record.source_key,
+                )
+                .order_by(desc(FiscalStatement.revision))
+                .limit(1)
+            )
+            if previous is not None and previous.amount == record.amount:
+                continue
+            db.add(
+                FiscalStatement(
+                    source_system="siops",
+                    source_key=record.source_key,
+                    municipality_ibge_code=record.municipality_code,
+                    budget_account_id=account.id,
+                    statement_type="health_expense",
+                    reference_year=record.year,
+                    reference_period=6,
+                    periodicity="annual_cumulative",
+                    annex="SIOPS Despesas por Fonte/Subfunção/Natureza",
+                    column_code=record.phase,
+                    amount=record.amount,
+                    availability_status="available",
+                    source_document_url=record.document_url,
+                    source_published_at=record.homologated_at,
+                    snapshot_id=snapshot.id,
+                    revision=1 if previous is None else previous.revision + 1,
+                )
+            )
+        dataset = db.get(Dataset, snapshot.dataset_id)
+        if dataset is not None:
+            dataset.publication_status = "published"
+        db.flush()
 
 
 class CnesBedsAdapter(SourceAdapter):
@@ -197,19 +595,13 @@ class CnesBedsAdapter(SourceAdapter):
     def parse(self, payload: FetchedPayload) -> list[CnesBedRecord]:
         with zipfile.ZipFile(io.BytesIO(payload.read_bytes())) as archive:
             members = [
-                item
-                for item in archive.infolist()
-                if item.filename.lower().endswith(".csv")
+                item for item in archive.infolist() if item.filename.lower().endswith(".csv")
             ]
             if len(members) != 1 or members[0].file_size > 100_000_000:
-                raise SourceValidationError(
-                    "Conteúdo ZIP de leitos alterado", code="schema_drift"
-                )
+                raise SourceValidationError("Conteúdo ZIP de leitos alterado", code="schema_drift")
             with archive.open(members[0]) as raw:
                 reader = csv.DictReader(
-                    io.TextIOWrapper(
-                        raw, encoding="cp1252", errors="strict", newline=""
-                    ),
+                    io.TextIOWrapper(raw, encoding="cp1252", errors="strict", newline=""),
                     delimiter=";",
                 )
                 fields = set(reader.fieldnames or [])
@@ -225,9 +617,7 @@ class CnesBedsAdapter(SourceAdapter):
                     if self.crosswalk.get(row["CO_IBGE"].strip()) in self.selected
                 ]
         if not selected_rows:
-            raise SourceValidationError(
-                "Leitos sem linhas para o recorte", code="empty_selection"
-            )
+            raise SourceValidationError("Leitos sem linhas para o recorte", code="empty_selection")
         latest = max(row["COMP"] for row in selected_rows)
         records = []
         for row in selected_rows:
@@ -257,18 +647,12 @@ class CnesBedsAdapter(SourceAdapter):
                 "CNES duplicado na competência de leitos", code="duplicate_key"
             )
         if any(
-            item.existing_count < 0
-            or item.sus_count < 0
-            or item.sus_count > item.existing_count
+            item.existing_count < 0 or item.sus_count < 0 or item.sus_count > item.existing_count
             for item in records
         ):
-            raise SourceValidationError(
-                "Quantitativo de leitos inválido", code="invalid_capacity"
-            )
+            raise SourceValidationError("Quantitativo de leitos inválido", code="invalid_capacity")
 
-    def upsert(
-        self, db: Session, records: list[CnesBedRecord], snapshot: SourceSnapshot
-    ) -> None:
+    def upsert(self, db: Session, records: list[CnesBedRecord], snapshot: SourceSnapshot) -> None:
         for record in records:
             previous = db.scalar(
                 select(HealthEstablishment)
@@ -376,9 +760,7 @@ class SinascBirthsAdapter(SourceAdapter):
             if canonical in selected_municipalities
         }
         if set(self.external_selected.values()) != selected_municipalities:
-            missing = sorted(
-                selected_municipalities - set(self.external_selected.values())
-            )
+            missing = sorted(selected_municipalities - set(self.external_selected.values()))
             raise ValueError(f"Municípios sem crosswalk SINASC: {missing}")
 
     @classmethod
@@ -391,9 +773,7 @@ class SinascBirthsAdapter(SourceAdapter):
             or parsed.query
             or parsed.fragment
         ):
-            raise SourceValidationError(
-                "URL SINASC não permitida", code="unsafe_source_url"
-            )
+            raise SourceValidationError("URL SINASC não permitida", code="unsafe_source_url")
 
     def discover(self) -> dict[str, Any]:
         self._validate_url(SINASC_2024_URL)
@@ -465,16 +845,12 @@ class SinascBirthsAdapter(SourceAdapter):
 
     def parse(self, payload: FetchedPayload) -> list[EpidemiologyRecord]:
         if payload.file_path is None:
-            raise SourceValidationError(
-                "Payload SINASC sem arquivo", code="empty_payload"
-            )
+            raise SourceValidationError("Payload SINASC sem arquivo", code="empty_payload")
         totals: Counter[str] = Counter()
         try:
             with zipfile.ZipFile(payload.file_path) as archive:
                 members = [
-                    item
-                    for item in archive.infolist()
-                    if item.filename.lower().endswith(".csv")
+                    item for item in archive.infolist() if item.filename.lower().endswith(".csv")
                 ]
                 if len(members) != 1:
                     raise SourceValidationError(
@@ -482,17 +858,14 @@ class SinascBirthsAdapter(SourceAdapter):
                     )
                 member = members[0]
                 if member.file_size > self.max_uncompressed_bytes or (
-                    member.compress_size
-                    and member.file_size / member.compress_size > 200
+                    member.compress_size and member.file_size / member.compress_size > 200
                 ):
                     raise SourceValidationError(
                         "ZIP SINASC excede limites seguros", code="zip_bomb"
                     )
                 with archive.open(member) as raw:
                     reader = csv.DictReader(
-                        io.TextIOWrapper(
-                            raw, encoding="latin-1", errors="strict", newline=""
-                        ),
+                        io.TextIOWrapper(raw, encoding="latin-1", errors="strict", newline=""),
                         delimiter=";",
                     )
                     fields = set(reader.fieldnames or [])
@@ -503,9 +876,7 @@ class SinascBirthsAdapter(SourceAdapter):
                             details={"missing": sorted(self.required_fields - fields)},
                         )
                     for row in reader:
-                        municipality = self.external_selected.get(
-                            row["CODMUNRES"].strip()
-                        )
+                        municipality = self.external_selected.get(row["CODMUNRES"].strip())
                         if municipality is None:
                             continue
                         birth_date = row["DTNASC"].strip()
@@ -541,11 +912,7 @@ class SinascBirthsAdapter(SourceAdapter):
                     count=raw_count if available else None,
                     raw_count=raw_count,
                     availability_status=(
-                        "available"
-                        if available
-                        else "suppressed"
-                        if suppressed
-                        else "unavailable"
+                        "available" if available else "suppressed" if suppressed else "unavailable"
                     ),
                     disclosure_threshold=self.disclosure_threshold,
                     document_url=SINASC_2024_URL,
@@ -555,9 +922,7 @@ class SinascBirthsAdapter(SourceAdapter):
 
     def validate(self, records: list[EpidemiologyRecord]) -> None:
         if len(records) != len(self.selected_municipalities):
-            raise SourceValidationError(
-                "Recorte SINASC incompleto", code="aggregate_mismatch"
-            )
+            raise SourceValidationError("Recorte SINASC incompleto", code="aggregate_mismatch")
         if any(
             item.raw_count < self.disclosure_threshold and item.count is not None
             for item in records
@@ -748,9 +1113,7 @@ class SimMortalityAdapter(SourceAdapter):
     def _validate_url(cls, value: str) -> None:
         parsed = urlparse(value)
         if parsed.scheme != "https" or parsed.hostname != cls.allowed_host:
-            raise SourceValidationError(
-                "URL SIM não permitida", code="unsafe_source_url"
-            )
+            raise SourceValidationError("URL SIM não permitida", code="unsafe_source_url")
 
     def discover(self) -> dict[str, Any]:
         self._validate_url(SIM_2024_URL)
@@ -792,9 +1155,7 @@ class SimMortalityAdapter(SourceAdapter):
         directory.mkdir(parents=True, exist_ok=True)
         try:
             with (
-                httpx.Client(
-                    headers=headers, follow_redirects=True, timeout=300
-                ) as client,
+                httpx.Client(headers=headers, follow_redirects=True, timeout=300) as client,
                 client.stream("GET", SIM_2024_URL) as response,
             ):
                 if response.status_code == 304 and state.get("processed"):
@@ -864,9 +1225,7 @@ class SimMortalityAdapter(SourceAdapter):
         try:
             with zipfile.ZipFile(payload.file_path) as archive:
                 members = [
-                    item
-                    for item in archive.infolist()
-                    if item.filename.lower().endswith(".csv")
+                    item for item in archive.infolist() if item.filename.lower().endswith(".csv")
                 ]
                 if len(members) != 1:
                     raise SourceValidationError(
@@ -876,17 +1235,12 @@ class SimMortalityAdapter(SourceAdapter):
                     )
                 member = members[0]
                 if member.file_size > self.max_uncompressed_bytes or (
-                    member.compress_size
-                    and member.file_size / member.compress_size > 200
+                    member.compress_size and member.file_size / member.compress_size > 200
                 ):
-                    raise SourceValidationError(
-                        "ZIP SIM excede limites seguros", code="zip_bomb"
-                    )
+                    raise SourceValidationError("ZIP SIM excede limites seguros", code="zip_bomb")
                 totals: Counter[tuple[str, str, str]] = Counter()
                 with archive.open(member) as raw:
-                    stream = io.TextIOWrapper(
-                        raw, encoding="latin-1", errors="strict", newline=""
-                    )
+                    stream = io.TextIOWrapper(raw, encoding="latin-1", errors="strict", newline="")
                     reader = csv.DictReader(stream, delimiter=";")
                     fields = set(reader.fieldnames or [])
                     if not self.required_fields.issubset(fields):
@@ -898,9 +1252,7 @@ class SimMortalityAdapter(SourceAdapter):
                     for row in reader:
                         if row["TIPOBITO"].strip() != "2":
                             continue
-                        municipality = self.external_selected.get(
-                            row["CODMUNRES"].strip()
-                        )
+                        municipality = self.external_selected.get(row["CODMUNRES"].strip())
                         if municipality is None:
                             continue
                         death_date = row["DTOBITO"].strip()
@@ -925,14 +1277,10 @@ class SimMortalityAdapter(SourceAdapter):
 
         records: list[EpidemiologyRecord] = []
         for municipality in sorted(self.selected_municipalities):
-            records.append(
-                self._record(municipality, "all", "Todas as causas", "all", totals)
-            )
+            records.append(self._record(municipality, "all", "Todas as causas", "all", totals))
             for category_code, category_name in CID_CHAPTERS:
                 records.append(
-                    self._record(
-                        municipality, category_code, category_name, "all", totals
-                    )
+                    self._record(municipality, category_code, category_name, "all", totals)
                 )
             for age_band, age_name in AGE_BANDS:
                 records.append(
@@ -975,9 +1323,7 @@ class SimMortalityAdapter(SourceAdapter):
         if len(keys) != len(set(keys)):
             raise SourceValidationError("Agregado SIM duplicado", code="duplicate_key")
         for municipality in self.selected_municipalities:
-            selected = [
-                record for record in records if record.municipality_code == municipality
-            ]
+            selected = [record for record in records if record.municipality_code == municipality]
             overall = next(
                 record.raw_count
                 for record in selected
@@ -1012,9 +1358,7 @@ class SimMortalityAdapter(SourceAdapter):
                 "Célula SIM pequena não foi suprimida", code="privacy_error"
             )
 
-    def after_validate(
-        self, payload: FetchedPayload, records: list[EpidemiologyRecord]
-    ) -> None:
+    def after_validate(self, payload: FetchedPayload, records: list[EpidemiologyRecord]) -> None:
         state = self._load_state()
         if state.get("sha256") == payload.sha256:
             state["processed"] = True

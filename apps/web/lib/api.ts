@@ -264,6 +264,9 @@ export type HealthOverview = {
   health_spending: {
     availability: "available" | "unavailable";
     value: string | null;
+    reference_year: number | null;
+    phase: string | null;
+    phases: Record<string, string | null>;
     methodology: string;
   };
   sources: HealthSource[];

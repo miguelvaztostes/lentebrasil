@@ -5,6 +5,7 @@ from ingestion.adapters.health import (
     CnesBedsAdapter,
     SimMortalityAdapter,
     SinascBirthsAdapter,
+    SiopsHealthExpenseAdapter,
 )
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
@@ -33,6 +34,7 @@ ADAPTERS = {
     "sim_mortality": SimMortalityAdapter,
     "cnes_beds": CnesBedsAdapter,
     "sinasc_births": SinascBirthsAdapter,
+    "siops_health_expenses": SiopsHealthExpenseAdapter,
 }
 
 __all__ = [
@@ -49,6 +51,7 @@ __all__ = [
     "SiconfiRreoAdapter",
     "SiconfiStatementAdapter",
     "SimMortalityAdapter",
+    "SiopsHealthExpenseAdapter",
     "SinascBirthsAdapter",
     "TceSpExpenseAdapter",
     "TceSpRevenueAdapter",

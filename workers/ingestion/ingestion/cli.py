@@ -14,9 +14,7 @@ from ingestion.factory import build_adapter, select_municipalities
 from ingestion.geography import sync_official_geographies
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
 
-app = typer.Typer(
-    help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True
-)
+app = typer.Typer(help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True)
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -75,7 +73,8 @@ def ingest(
         help=(
             "ibge, siconfi, cnes, educação, pncp, pncp_contracts, tcesp_revenues, "
             "tcesp_expenses, "
-            "siconfi_rgf, siconfi_dca, sim_mortality, cnes_beds, sinasc_births ou all"
+            "siconfi_rgf, siconfi_dca, sim_mortality, cnes_beds, sinasc_births, "
+            "siops_health_expenses ou all"
         ),
     ),
     dry_run: bool = typer.Option(False, help="Coleta e valida sem gravar no banco"),
@@ -83,9 +82,7 @@ def ingest(
         None,
         help="Códigos IBGE separados por vírgula; padrão compatível: Ribeirão Preto",
     ),
-    uf: str | None = typer.Option(
-        None, help="Seleciona os municípios cadastrados de uma UF"
-    ),
+    uf: str | None = typer.Option(None, help="Seleciona os municípios cadastrados de uma UF"),
     start_year: int | None = None,
     end_year: int | None = None,
     periods: str = "",
@@ -97,12 +94,8 @@ def ingest(
     end_date: str | None = typer.Option(
         None, help="Data ISO final para PNCP (janela máxima: 31 dias)"
     ),
-    modalities: str = typer.Option(
-        "", help="Códigos de modalidade PNCP separados por vírgula"
-    ),
-    entity_identifiers: str = typer.Option(
-        "", help="CNPJs de órgãos PNCP separados por vírgula"
-    ),
+    modalities: str = typer.Option("", help="Códigos de modalidade PNCP separados por vírgula"),
+    entity_identifiers: str = typer.Option("", help="CNPJs de órgãos PNCP separados por vírgula"),
     publication_mode: bool = typer.Option(
         False, help="Usa data de publicação em vez de atualização"
     ),
@@ -160,7 +153,7 @@ def schedule(
         ...,
         help=(
             "ibge, siconfi, cnes, censo_escolar, ideb, saeb, fnde_pnae, "
-            "sim_mortality, cnes_beds ou sinasc_births"
+            "sim_mortality, cnes_beds, sinasc_births ou siops_health_expenses"
         ),
     ),
     municipalities: str | None = None,
@@ -224,9 +217,7 @@ def schedule(
         else:
             jobs = [schedule_job(db, source, parameters)]
     typer.echo(
-        json.dumps(
-            [{"job_key": job.job_key, "status": job.status} for job in jobs], indent=2
-        )
+        json.dumps([{"job_key": job.job_key, "status": job.status} for job in jobs], indent=2)
     )
 
 
@@ -284,9 +275,7 @@ def education_rollback(
         raise typer.BadParameter("Dataset educacional inválido")
     with SessionLocal() as db:
         restored = rollback_education_release(db, dataset, release)
-    typer.echo(
-        json.dumps({"withdrawn": release, "restored": restored}, ensure_ascii=False)
-    )
+    typer.echo(json.dumps({"withdrawn": release, "restored": restored}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 
 from lente_api.database import get_db
 from lente_api.models import (
+    BudgetAccount,
     Dataset,
+    FiscalStatement,
     HealthBed,
     HealthEpidemiology,
     HealthEstablishment,
@@ -342,6 +344,89 @@ def _number(value: Decimal | None) -> str | None:
     return format(value, "f") if value is not None else None
 
 
+@router.get("/spending")
+def spending(
+    db: DbSession,
+    municipality: str = Query(..., pattern=r"^\d{7}$"),
+    year: int | None = Query(2025, ge=2000, le=2100),
+    phase: str | None = Query(None, max_length=40),
+    subfunction: str | None = Query(None, pattern=r"^\d{3}$"),
+    funding_source: str | None = Query(None, max_length=240),
+    top_level_only: bool = False,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    _require_municipality(db, municipality)
+    statement = (
+        _current(FiscalStatement)
+        .join(BudgetAccount, BudgetAccount.id == FiscalStatement.budget_account_id)
+        .where(
+            FiscalStatement.source_system == "siops",
+            FiscalStatement.statement_type == "health_expense",
+            FiscalStatement.municipality_ibge_code == municipality,
+        )
+    )
+    if year is not None:
+        statement = statement.where(FiscalStatement.reference_year == year)
+    if phase is not None:
+        statement = statement.where(FiscalStatement.column_code == phase)
+    if subfunction is not None:
+        statement = statement.where(
+            BudgetAccount.hierarchy["subfunction_code"].as_string() == subfunction
+        )
+    if funding_source is not None:
+        statement = statement.where(
+            BudgetAccount.hierarchy["funding_source"].as_string() == funding_source
+        )
+    if top_level_only:
+        statement = statement.where(BudgetAccount.account_code.like("total|%"))
+    count = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+    rows = list(
+        db.scalars(
+            statement.order_by(
+                FiscalStatement.reference_year.desc(),
+                FiscalStatement.column_code,
+                FiscalStatement.source_key,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+    )
+    items = []
+    for item in rows:
+        account = db.get(BudgetAccount, item.budget_account_id)
+        hierarchy = account.hierarchy if account is not None else {}
+        items.append(
+            {
+                "source_key": item.source_key,
+                "reference_year": item.reference_year,
+                "reference_period": item.reference_period,
+                "periodicity": item.periodicity,
+                "phase": item.column_code,
+                "amount": _number(item.amount),
+                "funding_source": hierarchy.get("funding_source"),
+                "subfunction_code": hierarchy.get("subfunction_code"),
+                "subfunction_name": hierarchy.get("subfunction_name"),
+                "nature_code": hierarchy.get("nature_code"),
+                "nature_name": None if account is None else account.name,
+                "top_level": hierarchy.get("top_level", False),
+                "homologated_at": item.source_published_at,
+                "source": _source(db, item.snapshot_id, item.source_document_url),
+            }
+        )
+    return {
+        "items": items,
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "methodology": (
+            "Despesas declaradas e homologadas no SIOPS. Cada fase contábil é "
+            "consultada separadamente; valores empenhados, liquidados e pagos nunca "
+            "são somados entre si. O 6º bimestre representa o acumulado anual."
+        ),
+    }
+
+
 @router.get("/overview")
 def overview(
     db: DbSession,
@@ -420,6 +505,22 @@ def overview(
         )
     ).first()
     existing_beds, sus_beds = beds if beds is not None else (None, None)
+    spending_rows = db.execute(
+        _current(FiscalStatement)
+        .join(BudgetAccount, BudgetAccount.id == FiscalStatement.budget_account_id)
+        .where(
+            FiscalStatement.source_system == "siops",
+            FiscalStatement.statement_type == "health_expense",
+            FiscalStatement.municipality_ibge_code == municipality,
+            FiscalStatement.reference_year == 2025,
+            BudgetAccount.account_code.like("total|%"),
+        )
+        .with_only_columns(FiscalStatement.column_code, FiscalStatement.amount)
+    ).all()
+    spending_by_phase: dict[str, Decimal] = {}
+    for phase, amount in spending_rows:
+        if phase is not None and amount is not None:
+            spending_by_phase[phase] = spending_by_phase.get(phase, Decimal(0)) + amount
     return {
         "municipality": {
             "ibge_code": municipality_row.ibge_code,
@@ -475,11 +576,15 @@ def overview(
             ),
         },
         "health_spending": {
-            "availability": "unavailable",
-            "value": None,
+            "availability": "available" if spending_by_phase else "unavailable",
+            "reference_year": 2025 if spending_by_phase else None,
+            "phase": "paid" if "paid" in spending_by_phase else None,
+            "value": _number(spending_by_phase.get("paid")),
+            "phases": {phase: _number(amount) for phase, amount in spending_by_phase.items()},
             "methodology": (
-                "SIOPS permanece sem extração homologada; valores fiscais gerais não são "
-                "reclassificados automaticamente como gasto em saúde."
+                "SIOPS municipal 2025, fechamento do 6º bimestre (acumulado anual). "
+                "O destaque usa despesa paga; fases contábeis permanecem separadas e "
+                "não são somadas. Valores fiscais gerais não são reclassificados."
             ),
         },
         "sources": [
@@ -487,6 +592,7 @@ def overview(
             _dataset_source(db, "cnes_beds_establishments"),
             _dataset_source(db, "sim_mortality_municipal"),
             _dataset_source(db, "sinasc_births_municipal"),
+            _dataset_source(db, "siops_health_expenses"),
         ],
     }
 

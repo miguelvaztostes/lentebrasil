@@ -44,9 +44,9 @@ HEALTH_DECISIONS: dict[str, tuple[str, str]] = {
         "serão utilizados.",
     ),
     "LNT-0025": (
-        "manual_review",
-        "SIOPS foi confirmado como portal/TABNET, sem exportação estruturada "
-        "homologada nesta etapa.",
+        "integrate",
+        "ZIP/CSV oficial municipal SIOPS 2025, 6º bimestre, homologado com "
+        "fases contábeis, fonte, subfunção e natureza preservadas.",
     ),
     "LNT-0026": (
         "manual_review",

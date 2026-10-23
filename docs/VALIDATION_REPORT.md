@@ -287,8 +287,8 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   total de cada município.
 - O conector não persiste o CSV: agrega em streaming por residência, remove o arquivo temporário,
   não transporta campos nominais e suprime contagens de 1 a 4.
-- A API separa rede cadastrada, leitos cadastrados, produção, mortalidade e gastos. SIA/SIH e
-  SIOPS permanecem explicitamente indisponíveis; a falha de acesso ao host DEMAS impediu validar
+- A API separa rede cadastrada, leitos cadastrados, produção, mortalidade e gastos. SIA/SIH
+  permanecem explicitamente indisponíveis; a falha de acesso ao host DEMAS impediu validar
   respostas e schema, portanto a documentação Swagger foi tratada apenas como descoberta.
 - Carga PostgreSQL descartável: 93 agregados, 31 por município; reexecução aceitou zero itens,
   manteve revisão 1, um snapshot e nenhum `storage_path` bruto. A API respondeu HTTP 200 para
@@ -315,8 +315,27 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
 - A API real respondeu HTTP 200: `/health/overview` retornou 18 estabelecimentos, 2.555 leitos,
   1.609 leitos SUS e 7.020 nascidos vivos para Ribeirão Preto; `/health/beds` retornou paginação
   SQL com 18 linhas. A ausência de SIM no banco descartável permaneceu `null`, nunca zero.
-- SIA/SUS, SIH/SUS, serviços CNES e SIOPS continuam sem conector homologado. O material Swagger
+- SIA/SUS, SIH/SUS e serviços CNES continuam sem conector homologado. O material Swagger
   não foi promovido a fonte operacional sem resposta/schema verificáveis.
 - O ciclo de migração `0012 → 0010 → 0012` foi aprovado. A suíte completa passou com 39 testes;
   Ruff e verificação de formatação passaram. O frontend passou no teste de conteúdo, TypeScript e
   build de produção com 23 rotas Next.js.
+
+### Complemento homologado — SIOPS municipal 2025 — 23/10/2026
+
+- O ZIP/CSV oficial do 6º bimestre de 2025 respondeu HTTP 200, com 64.105.064 bytes,
+  1.878.084.870 bytes descompactados e SHA-256
+  `67723683052e6dca7b344c8b99c7243d3791829b550b8de3a534442dbaaa6c5d`.
+- A validação real aceitou 6.013 linhas e nenhuma rejeição para Ribeirão Preto, Campinas e São
+  Paulo. O mesmo recorte foi carregado no PostgreSQL da demo.
+- As fases inicial, atualizada, empenhada, liquidada, paga e restos a pagar permanecem em linhas
+  distintas. O painel destaca somente a fase paga e o endpoint permite consultar cada rubrica.
+- Três totais pagos foram reconciliados diretamente do CSV: R$ 1.031.794.155,24,
+  R$ 2.223.012.417,95 e R$ 24.080.276.794,75, respectivamente.
+- A primeira validação detectou corretamente que `Cod_IBGE` era UF e que o município estava em
+  `Cód.Município`; o mapeamento foi corrigido antes de qualquer publicação.
+- SIA/SUS, SIH/SUS, serviços CNES, SISAB e ANS continuam sem conector homologado. Os arquivos
+  DBC e relatórios existentes exigem conversor/dicionário e reconciliação próprios; essa lacuna
+  não é apresentada como zero nem como cobertura disponível.
+- Migração limpa, ciclo `0013 → 0012 → 0013`, Ruff, formatação e 41 testes em PostgreSQL 16
+  descartável foram aprovados. O frontend passou no teste de conteúdo, TypeScript e build Next.js.

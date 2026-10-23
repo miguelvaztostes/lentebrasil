@@ -107,7 +107,9 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
   arquivos oficiais, carregados com versão/hash e reconciliados em três municípios.
 - API e página `/municipios/[ibgeCode]/saude` distinguem cadastro CNES, capacidade cadastrada,
   produção assistencial, mortalidade e gasto municipal; ausência nunca aparece como zero.
-- SIA/SUS, SIH/SUS, serviços CNES, SISAB, SIOPS, ANS e epidemiologia adicional seguem
+- SIOPS 2025 foi integrado pelo ZIP/CSV municipal oficial, com fases contábeis separadas,
+  valores `Decimal`, proveniência e consulta paginada por município, ano e rubrica.
+- SIA/SUS, SIH/SUS, serviços CNES, SISAB, ANS e epidemiologia adicional seguem
   como candidatos até que recurso, schema, direito, período e semântica sejam homologados.
 - Próximo passo: homologar serviços CNES e somente depois SIA/SIH agregados,
   com três amostras por conjunto e reconciliação contra o portal oficial.
