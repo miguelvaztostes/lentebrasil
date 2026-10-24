@@ -317,6 +317,9 @@ class CatalogEntry(Base):
     integration_decision: Mapped[str | None] = mapped_column(String(40), index=True)
     decision_reason: Mapped[str | None] = mapped_column(Text)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_status: Mapped[str] = mapped_column(String(40), default="under_review", index=True)
+    technical_owner: Mapped[str] = mapped_column(String(120), default="data-platform")
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
     catalog_import: Mapped[CatalogImport] = relationship()
     provider: Mapped[DataProvider] = relationship()
@@ -913,6 +916,59 @@ class InfrastructureFact(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1)
 
 
+class AgricultureFact(Base):
+    __tablename__ = "agriculture_facts"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_agriculture_fact_revision"
+        ),
+        Index(
+            "ix_agriculture_fact_municipality_year",
+            "municipality_ibge_code",
+            "reference_year",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    reference_year: Mapped[int] = mapped_column(Integer, index=True)
+    product_code: Mapped[str] = mapped_column(String(40), index=True)
+    product_name: Mapped[str] = mapped_column(String(240))
+    metric_code: Mapped[str] = mapped_column(String(100), index=True)
+    value: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    unit: Mapped[str] = mapped_column(String(80))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class GeospatialAsset(Base):
+    __tablename__ = "geospatial_assets"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_geospatial_asset_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    geo_type: Mapped[str] = mapped_column(String(40), index=True)
+    geo_code: Mapped[str] = mapped_column(String(40), index=True)
+    reference_date: Mapped[date] = mapped_column(Date, index=True)
+    crs: Mapped[str] = mapped_column(String(40))
+    geometry: Mapped[dict] = mapped_column(JSON)
+    bbox: Mapped[list] = mapped_column(JSON, default=list)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class SourceSnapshot(Base):
     __tablename__ = "source_snapshots"
 
@@ -1033,6 +1089,36 @@ class IngestionJob(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     dataset: Mapped[Dataset] = relationship()
+
+
+class ExportJob(Base):
+    __tablename__ = "export_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'failed', 'expired')",
+            name="ck_export_jobs_status",
+        ),
+        CheckConstraint("format IN ('csv', 'parquet')", name="ck_export_jobs_format"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    requester_hash: Mapped[str] = mapped_column(String(64), index=True)
+    domain: Mapped[str] = mapped_column(String(60), index=True)
+    format: Mapped[str] = mapped_column(String(20))
+    filters: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    row_limit: Mapped[int] = mapped_column(Integer)
+    row_count: Mapped[int | None] = mapped_column(Integer)
+    byte_count: Mapped[int | None] = mapped_column(Integer)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    storage_path: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    lock_token: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    error_details: Mapped[str | None] = mapped_column(Text)
 
 
 class DataQualityIssue(Base):

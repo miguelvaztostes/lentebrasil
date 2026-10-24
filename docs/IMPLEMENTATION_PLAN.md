@@ -139,6 +139,19 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 - API `/api/v1/sectors` possui paginação SQL, filtros municipal/UF/período/categoria e CSV; páginas
   municipais mostram proveniência, método, período e indisponibilidade explícita.
 
+## Etapa 3E — fechamento horizontal e exportações
+
+- Os 165 recursos candidatos possuem decisão em seis estados, responsável técnico, data de
+  checagem e razão pública na matriz do catálogo.
+- PAM 2024 e malhas municipais IBGE são a primeira integração desta rodada: coleta externa ocorre
+  somente no worker, com snapshot, hash, revisão, idempotência e CRS declarado.
+- Rotas setoriais genéricas mostram o catálogo e seus bloqueios quando não existe conteúdo real;
+  agricultura ganha visualização específica somente após publicação.
+- Exportações acima do limite síncrono são jobs persistentes CSV/Parquet, com quotas, expiração,
+  limpeza, recuperação de lock e limite medido de memória.
+- Próximas ondas homologam recursos já localizados (TSE, SSP-SP, Atlas de Desastres e camadas
+  ambientais) individualmente; descoberta não equivale a integração.
+
 ```text
 docs → migração/catálogo → API → adaptador IBGE → UI → Siconfi/CNES
      → testes → observabilidade → backup/restore → empacotamento

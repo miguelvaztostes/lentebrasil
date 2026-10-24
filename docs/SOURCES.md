@@ -63,6 +63,14 @@ Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa
 
 Uma fonte só muda para `confirmed` quando a URL canônica responde e o conteúdo é conferido contra município, período, unidade e schema esperados. Mudança de schema bloqueia publicação da nova carga, registra uma ocorrência de qualidade e preserva o último valor validado.
 
+## Fechamento horizontal — 24/10/2026
+
+A auditoria dos 165 IDs e as decisões dos setores restantes estão em
+`HORIZONTAL_SOURCE_AUDIT.md`. A matriz completa e exportável é servida por
+`/api/v1/catalog/matrix` e `/api/v1/catalog/matrix.csv`. Nesta rodada, PAM 2024 e malhas
+municipais IBGE foram homologadas e publicadas; as demais fontes verificadas continuam visíveis
+com bloqueio explícito, sem serem apresentadas como cobertura existente.
+
 ## Fontes efetivamente implementadas no MVP
 
 - `ibge_population`: população residente estimada, pessoas, periodicidade anual.

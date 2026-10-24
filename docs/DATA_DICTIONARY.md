@@ -159,3 +159,16 @@ A pesquisa normaliza acentos com `translate(lower(...))` no PostgreSQL e usa ín
 
 PIB/VAB usa `NUMERIC(24,6)` e `price_basis=current_prices`. CAGED preserva a competência mensal e
 SENATRAN a data de referência. Série nacional como IPCA ou Selic nunca recebe código municipal.
+
+## Agricultura, geodados e exportações assíncronas
+
+| Tabela | Grão | Regra pública |
+|---|---|---|
+| `agriculture_facts` | município/ano/produto/métrica/revisão | PAM 5457, quantidade produzida; valor ausente ou sigiloso é `NULL`, não zero. |
+| `geospatial_assets` | tipo geográfico/código/qualidade/revisão | GeoJSON original, bbox e CRS EPSG:4674; nenhuma estatística é inferida pela geometria. |
+| `export_jobs` | solicitante hash/domínio/formato/filtros | Estado, contagem, bytes, hash, expiração e lock; identidade bruta e URL arbitrária não são armazenadas. |
+
+`catalog_entries.review_status` usa exclusivamente `validated_and_published`,
+`integrated_not_published`, `under_review`, `restricted`, `portal_only` ou `unavailable`.
+`technical_owner` identifica responsabilidade interna e `last_checked_at` registra a última
+classificação, sem transformar automaticamente inventário candidato em fonte homologada.

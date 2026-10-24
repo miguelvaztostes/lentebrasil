@@ -13,6 +13,7 @@ from ingestion.adapters.health import (
     SinascBirthsAdapter,
     SiopsHealthExpenseAdapter,
 )
+from ingestion.adapters.horizontal import IbgeBoundaryAdapter, IbgePamAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.sectors import (
     IbgePibAdapter,
@@ -53,6 +54,8 @@ ADAPTERS = {
     "ibge_pib": IbgePibAdapter,
     "novo_caged": NovoCagedAdapter,
     "senatran_fleet": SenatranFleetAdapter,
+    "ibge_pam": IbgePamAdapter,
+    "ibge_boundaries": IbgeBoundaryAdapter,
 }
 
 __all__ = [
@@ -62,6 +65,8 @@ __all__ = [
     "CnesBedsAdapter",
     "CnesServicesAdapter",
     "FndePnaeAdapter",
+    "IbgeBoundaryAdapter",
+    "IbgePamAdapter",
     "IbgePibAdapter",
     "IbgePopulationAdapter",
     "InepCensoEscolarAdapter",

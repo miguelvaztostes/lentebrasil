@@ -9,6 +9,11 @@ from pathlib import Path
 from lente_api.database import SessionLocal
 from lente_api.settings import get_settings
 
+from ingestion.exports import (
+    claim_export_job,
+    cleanup_expired_exports,
+    execute_export_job,
+)
 from ingestion.factory import LEGACY_MUNICIPALITY
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
 
@@ -60,6 +65,29 @@ def seed_recurring_jobs() -> None:
 
 def cycle(*, max_jobs: int = 10) -> int:
     processed = 0
+    with SessionLocal() as db:
+        expired = cleanup_expired_exports(
+            db, raw_data_dir=Path(get_settings().raw_data_dir)
+        )
+        if expired:
+            emit("exports_expired", count=expired)
+    while processed < max_jobs:
+        with SessionLocal() as db:
+            export_job = claim_export_job(db)
+            if export_job is None:
+                break
+            try:
+                result = execute_export_job(
+                    db, export_job, raw_data_dir=Path(get_settings().raw_data_dir)
+                )
+                emit("export_completed", **result)
+            except Exception as exc:  # noqa: BLE001 - one export cannot block the queue
+                emit(
+                    "export_failed",
+                    export_job_id=str(export_job.id),
+                    error=str(exc)[:1000],
+                )
+        processed += 1
     while processed < max_jobs:
         with SessionLocal() as db:
             job = claim_next_job(db)

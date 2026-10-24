@@ -394,3 +394,30 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   ciclo `0014 → 0013 → 0014` aprovados; Ruff, formatação e `git diff --check` aprovados. O
   frontend passou no teste de conteúdo, TypeScript e build Next.js com 23 rotas. O audit de
   dependências de produção (`npm audit --omit=dev`) não encontrou vulnerabilidades.
+
+## Etapa 3E — fechamento horizontal — 24/10/2026
+
+- O catálogo importado respondeu com 165 registros, 16 áreas e 95 indicadores; todos possuem um
+  dos seis estados permitidos, responsável `data-platform`, data de checagem e justificativa.
+- PAM/SIDRA 5457, variável 214, ano 2024: 258 linhas aceitas para Ribeirão Preto, Campinas e São
+  Paulo, nenhuma rejeitada. A repetição manteve 258 fatos, revisão 1 e checksum
+  `e35fbf28dd5380e23917bd2bec6af979ffdd0d7a3e7847c996b27bd9efbead51`.
+- API de Malhas IBGE: três GeoJSON aceitos. O teste real detectou `FeatureCollection`; o parser
+  foi corrigido para validar uma única feição e o `codarea` antes de publicar. Reexecução manteve
+  três fatos, revisão 1 e checksum
+  `c794003053cc2936263c848a437b29d41630e988d89a523ad302045ee585b11f`.
+- `/api/v1/sectors/agriculture` retornou 86 produtos para Ribeirão Preto em 2024, inclusive
+  valores ausentes como `null`; `/api/v1/geo/boundaries/3543402` retornou EPSG:4674, bbox, URL e
+  SHA-256 do snapshot.
+- Um job real `catalog`/Parquet concluiu fora do request com 165 linhas, 12.978 bytes e SHA-256
+  `12a6034b5e73c5de68340db39d9f94717195bf658e158d32bada66585f997d3f`.
+- PostgreSQL 16 limpo: migrações `0001 → 0017`, ciclo `0017 → 0016 → 0017` e 54 testes passaram.
+  O teste de memória escreveu 50 mil linhas por streaming abaixo de 8 MB e validou o magic byte
+  Parquet. Ruff e formatação passaram em 66 arquivos.
+- Frontend: teste de conteúdo, TypeScript e build de produção Next.js passaram; foram geradas 23
+  rotas. A instalação completa reportou quatro vulnerabilidades de ferramentas de desenvolvimento
+  (três moderadas e uma alta), enquanto `npm audit --omit=dev` não encontrou vulnerabilidades nas
+  dependências de produção.
+- O inventário continua candidato. TSE, SSP-SP, Câmara/Senado, TerraBrasilis, Cemaden,
+  S2ID/Atlas, cultura, Cadastur e MCTI permanecem com decisões e bloqueios explícitos descritos em
+  `HORIZONTAL_SOURCE_AUDIT.md`; não são apresentados como cobertura publicada.

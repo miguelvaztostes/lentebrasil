@@ -173,8 +173,16 @@ Principais rotas:
 - `GET /api/v1/sectors/labor?municipality=3543402&section=G`
 - `GET /api/v1/sectors/infrastructure?municipality=3543402&service_type=transport`
 - `GET /api/v1/sectors/exports/economy.csv?municipality=3543402`
+- `GET /api/v1/sectors/agriculture?municipality=3543402&start_year=2024&end_year=2024`
+- `GET /api/v1/geo/boundaries/3543402`
+- `GET /api/v1/catalog/matrix?limit=200`
+- `GET /api/v1/catalog/matrix.csv`
+- `POST /api/v1/export-jobs` e `GET /api/v1/export-jobs/{id}`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
+Exportações grandes são processadas fora do request em CSV/Parquet, expiram após 24 horas e
+possuem quotas por identidade. Consulte `docs/HORIZONTAL_SOURCE_AUDIT.md` para cobertura,
+decisões dos 165 recursos e pendências.
 O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando
 Ribeirão Preto quando o parâmetro é omitido.
 

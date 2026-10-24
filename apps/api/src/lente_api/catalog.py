@@ -53,6 +53,8 @@ HOMOLOGATED_DATASET_LINKS = {
     "LNT-0095": "siconfi_dca",
     "LNT-0099": "tcesp_revenues",
     "LNT-0100": "tcesp_expenses",
+    "LNT-0069": "ibge_municipality_boundaries",
+    "LNT-0137": "ibge_pam_production",
 }
 ALLOWED_FORMATS = {
     "api",
@@ -113,6 +115,10 @@ ALIASES = {
     "terms": ("terms", "termos", "restricoes", "restrições"),
     "frequency": ("frequency", "frequencia", "frequência", "update_frequency", "freq"),
     "granularity": ("granularity", "granularidade", "recorte", "grao", "geografia"),
+    "authentication": ("authentication", "autenticacao", "autenticação", "auth"),
+    "modality": ("modality", "modalidade", "access_type", "tipo_acesso"),
+    "notes": ("notes", "notas", "observacao", "observação"),
+    "status": ("status", "situacao", "situação"),
 }
 
 OFFICIAL_TOP_LEVEL_KEYS = {
@@ -756,6 +762,19 @@ def _link_homologated_datasets(db: Session) -> None:
         if entry is None or dataset is None:
             continue
         entry.dataset_id = dataset.id
+        entry.integration_decision = "integrate"
+        entry.review_status = (
+            "validated_and_published"
+            if dataset.publication_status == "published"
+            else "integrated_not_published"
+        )
+        entry.decision_reason = (
+            "Conector homologado e carga validada/publicada."
+            if dataset.publication_status == "published"
+            else "Conector homologado; publicação depende de carga validada."
+        )
+        entry.technical_owner = "data-platform"
+        entry.last_checked_at = datetime.now(UTC)
         if dataset.source_resource_id is not None:
             entry.source_resource_id = dataset.source_resource_id
 
@@ -950,6 +969,33 @@ def _import_record(
             resource.source_status = "verified"
             resource.connector_status = "implemented"
             resource.last_verified_at = entry.decided_at
+    entry.review_status = _inventory_review_status(record, entry.integration_decision, dataset)
+    entry.technical_owner = "data-platform"
+    entry.last_checked_at = entry.decided_at or imported_at
+    if not entry.decision_reason:
+        entry.decision_reason = str(
+            _first(record, "notes")
+            or _first(record, "status")
+            or "Recurso candidato aguarda homologação técnica."
+        )
+
+
+def _inventory_review_status(
+    record: dict[str, Any], decision: str | None, dataset: Dataset | None
+) -> str:
+    if dataset is not None and dataset.publication_status == "published":
+        return "validated_and_published"
+    if decision == "integrate":
+        return "integrated_not_published"
+    auth = str(_first(record, "authentication") or "").casefold()
+    if decision == "restricted" or "token" in auth or "conta" in auth:
+        return "restricted"
+    if decision == "unavailable":
+        return "unavailable"
+    modality = str(_first(record, "modality") or "").casefold()
+    if "portal" in modality or "catálogo" in modality or "catalogo" in modality:
+        return "portal_only"
+    return "under_review"
 
 
 def _summary(

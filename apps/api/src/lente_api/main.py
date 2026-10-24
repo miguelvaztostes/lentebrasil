@@ -12,7 +12,9 @@ from fastapi.responses import RedirectResponse
 from lente_api.api import router
 from lente_api.discovery_api import router as discovery_router
 from lente_api.education_api import router as education_router
+from lente_api.exports_api import router as exports_router
 from lente_api.health_api import router as health_router
+from lente_api.horizontal_api import router as horizontal_router
 from lente_api.sectors_api import router as sectors_router
 from lente_api.settings import get_settings
 from lente_api.transparency_api import router as transparency_router
@@ -57,8 +59,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=False,
-    allow_methods=["GET", "OPTIONS"],
-    allow_headers=["Accept", "Content-Type", "X-Request-ID"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type", "X-Client-ID", "X-Request-ID"],
 )
 
 
@@ -85,7 +87,9 @@ async def request_context(request: Request, call_next):
 
 app.include_router(discovery_router)
 app.include_router(education_router)
+app.include_router(exports_router)
 app.include_router(health_router)
+app.include_router(horizontal_router)
 app.include_router(sectors_router)
 app.include_router(transparency_router)
 app.include_router(router)

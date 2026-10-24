@@ -78,7 +78,7 @@ def ingest(
             "siconfi_rgf, siconfi_dca, sim_mortality, cnes_beds, sinasc_births, "
             "siops_health_expenses, sih_production, sia_production, cnes_services, "
             "ans_beneficiaries ou all"
-            ", ibge_pib, novo_caged, senatran_fleet"
+            ", ibge_pib, novo_caged, senatran_fleet, ibge_pam, ibge_boundaries"
         ),
     ),
     dry_run: bool = typer.Option(False, help="Coleta e valida sem gravar no banco"),

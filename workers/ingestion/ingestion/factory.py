@@ -34,6 +34,7 @@ from ingestion.adapters.health import (
     SinascBirthsAdapter,
     SiopsHealthExpenseAdapter,
 )
+from ingestion.adapters.horizontal import IbgeBoundaryAdapter, IbgePamAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.sectors import (
     IbgePibAdapter,
@@ -115,6 +116,18 @@ def build_adapter(
             municipalities=set(codes),
             years=list(range(first, last + 1)),
         )
+    if source == "ibge_pam":
+        first = start_year if start_year is not None else 2024
+        last = end_year if end_year is not None else first
+        if first < 1974 or last > today.year or first > last:
+            raise ValueError("Janela anual PAM inválida")
+        return IbgePamAdapter(
+            raw_data_dir=raw_data_dir,
+            municipalities=set(codes),
+            years=list(range(first, last + 1)),
+        )
+    if source == "ibge_boundaries":
+        return IbgeBoundaryAdapter(raw_data_dir=raw_data_dir, municipalities=set(codes))
     if source == "novo_caged":
         year = start_year if start_year is not None else 2025
         if end_year not in {None, year}:

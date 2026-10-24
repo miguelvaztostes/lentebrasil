@@ -19,6 +19,9 @@ class Settings(BaseSettings):
         "http://localhost",
     ]
     raw_data_dir: Path = Path("data/raw")
+    export_ttl_hours: int = 24
+    export_active_quota: int = 3
+    export_hourly_quota: int = 10
 
     @field_validator("cors_origins", mode="before")
     @classmethod
