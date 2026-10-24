@@ -1,4 +1,10 @@
 from ingestion.adapters.cnes import CnesAdapter
+from ingestion.adapters.datasus_health import (
+    AnsBeneficiariesAdapter,
+    CnesServicesAdapter,
+    SiaProductionAdapter,
+    SihProductionAdapter,
+)
 from ingestion.adapters.education import InepCensoEscolarAdapter, InepIdebAdapter
 from ingestion.adapters.federal_education import FndePnaeAdapter, InepSaebAdapter
 from ingestion.adapters.health import (
@@ -35,12 +41,18 @@ ADAPTERS = {
     "cnes_beds": CnesBedsAdapter,
     "sinasc_births": SinascBirthsAdapter,
     "siops_health_expenses": SiopsHealthExpenseAdapter,
+    "sih_production": SihProductionAdapter,
+    "sia_production": SiaProductionAdapter,
+    "cnes_services": CnesServicesAdapter,
+    "ans_beneficiaries": AnsBeneficiariesAdapter,
 }
 
 __all__ = [
     "ADAPTERS",
+    "AnsBeneficiariesAdapter",
     "CnesAdapter",
     "CnesBedsAdapter",
+    "CnesServicesAdapter",
     "FndePnaeAdapter",
     "IbgePopulationAdapter",
     "InepCensoEscolarAdapter",
@@ -48,11 +60,13 @@ __all__ = [
     "InepSaebAdapter",
     "PncpContractAdapter",
     "PncpProcurementAdapter",
+    "SiaProductionAdapter",
     "SiconfiRreoAdapter",
     "SiconfiStatementAdapter",
+    "SihProductionAdapter",
     "SimMortalityAdapter",
-    "SiopsHealthExpenseAdapter",
     "SinascBirthsAdapter",
+    "SiopsHealthExpenseAdapter",
     "TceSpExpenseAdapter",
     "TceSpRevenueAdapter",
 ]

@@ -109,10 +109,11 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
   produção assistencial, mortalidade e gasto municipal; ausência nunca aparece como zero.
 - SIOPS 2025 foi integrado pelo ZIP/CSV municipal oficial, com fases contábeis separadas,
   valores `Decimal`, proveniência e consulta paginada por município, ano e rubrica.
-- SIA/SUS, SIH/SUS, serviços CNES, SISAB, ANS e epidemiologia adicional seguem
-  como candidatos até que recurso, schema, direito, período e semântica sejam homologados.
-- Próximo passo: homologar serviços CNES e somente depois SIA/SIH agregados,
-  com três amostras por conjunto e reconciliação contra o portal oficial.
+- SIA/SUS, SIH/SUS, serviços CNES e vínculos municipais ANS foram homologados para dezembro de
+  2025. A distribuição DBC é acessada por FTP passivo (DATASUS) ou HTTPS (ANS), agregada antes
+  da persistência e removida da área temporária.
+- SISAB segue pendente: o relatório é público, porém a exportação depende de estado JSF sem API
+  ou artefato versionado estável. Próximo passo é homologar um download oficial reproduzível.
 
 ## Etapa 3B — transparência e contratações
 

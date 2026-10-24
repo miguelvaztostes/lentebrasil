@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-DECIDED_AT = datetime(2026, 10, 22, tzinfo=UTC)
+DECIDED_AT = datetime(2026, 10, 23, tzinfo=UTC)
 
 HEALTH_DECISIONS: dict[str, tuple[str, str]] = {
     "LNT-0017": (
@@ -31,17 +31,19 @@ HEALTH_DECISIONS: dict[str, tuple[str, str]] = {
         "de residência e descarte dos microdados após o processamento.",
     ),
     "LNT-0022": (
-        "manual_review",
-        "SIH/SUS é arquivo/TABNET; a rota DEMAS documentada ainda não teve resposta validada.",
+        "integrate",
+        "DBC oficial SIH/SUS de dezembro de 2025 validado por FTP passivo e "
+        "agregado antes da persistência.",
     ),
     "LNT-0023": (
-        "manual_review",
-        "SIA/SUS é arquivo/TABNET; a rota DEMAS documentada ainda não teve resposta validada.",
+        "integrate",
+        "Partes DBC oficiais SIA/SUS de dezembro de 2025 validadas por FTP passivo "
+        "e agregadas antes da persistência.",
     ),
     "LNT-0024": (
-        "restricted",
-        "SISAB não teve API pública confirmada; endpoints internos ou autenticados não "
-        "serão utilizados.",
+        "manual_review",
+        "Os relatórios públicos SISAB abrem sem autenticação, mas a exportação depende de "
+        "estado JSF e não oferece contrato estável de API ou arquivo versionado homologado.",
     ),
     "LNT-0025": (
         "integrate",
@@ -49,9 +51,9 @@ HEALTH_DECISIONS: dict[str, tuple[str, str]] = {
         "fases contábeis, fonte, subfunção e natureza preservadas.",
     ),
     "LNT-0026": (
-        "manual_review",
-        "ANS publica arquivos DBC municipais; conversão e reconciliação ainda não "
-        "foram homologadas.",
+        "integrate",
+        "Arquivo DBC municipal ANS de dezembro de 2025 homologado para vínculos; "
+        "a unidade de contagem não representa pessoas únicas.",
     ),
     "LNT-0027": (
         "metadata_only",

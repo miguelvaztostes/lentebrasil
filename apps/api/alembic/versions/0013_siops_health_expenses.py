@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0013"

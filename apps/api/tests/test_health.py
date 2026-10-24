@@ -8,6 +8,13 @@ from decimal import Decimal
 from pathlib import Path
 
 from ingestion.adapters.base import FetchedPayload
+from ingestion.adapters.datasus_health import (
+    CnesServicesAdapter,
+    SiaProductionAdapter,
+    SihProductionAdapter,
+    aggregate_sia_rows,
+    aggregate_sih_rows,
+)
 from ingestion.adapters.health import (
     CnesBedsAdapter,
     SimMortalityAdapter,
@@ -16,6 +23,83 @@ from ingestion.adapters.health import (
     cid_chapter,
     sim_age_band,
 )
+
+
+def test_sih_aggregates_authorizations_and_decimal_without_personal_fields() -> None:
+    rows = [
+        {
+            "MUNIC_MOV": "354340",
+            "ANO_CMPT": "2025",
+            "MES_CMPT": "12",
+            "PROC_REA": "0303010037",
+            "ESPEC": "01",
+            "COMPLEX": "02",
+            "VAL_TOT": "10.11",
+            "N_AIH": "identificador-descartado",
+        },
+        {
+            "MUNIC_MOV": "354340",
+            "ANO_CMPT": "2025",
+            "MES_CMPT": "12",
+            "PROC_REA": "0303010037",
+            "ESPEC": "01",
+            "COMPLEX": "02",
+            "VAL_TOT": 20.22,
+            "CPF_AUT": "dado-descartado",
+        },
+        {"MUNIC_MOV": "350950", "ANO_CMPT": "2025", "MES_CMPT": "12"},
+    ]
+    records = aggregate_sih_rows(rows, {"354340": "3543402"})
+    assert len(records) == 1
+    assert records[0].quantity == Decimal("2")
+    assert records[0].approved_amount == Decimal("30.33")
+    assert "identificador" not in repr(records[0]) and "CPF" not in repr(records[0])
+
+
+def test_sia_aggregates_approved_production_and_keeps_file_part() -> None:
+    rows = [
+        {
+            "PA_UFMUN": "354340",
+            "PA_CMP": "202512",
+            "PA_PROC_ID": "0202020304",
+            "PA_TPUPS": "36",
+            "PA_QTDAPR": 2,
+            "PA_VALAPR": "3.06",
+            "PA_AUTORIZ": "descartado",
+            "PA_CNSMED": "descartado",
+        },
+        {
+            "PA_UFMUN": "354340",
+            "PA_CMP": "202512",
+            "PA_PROC_ID": "0202020304",
+            "PA_TPUPS": "36",
+            "PA_QTDAPR": 1,
+            "PA_VALAPR": 1.53,
+        },
+    ]
+    records = aggregate_sia_rows(rows, {"354340": "3543402"}, "PASP2512a.dbc")
+    assert len(records) == 1
+    assert records[0].quantity == Decimal("3")
+    assert records[0].approved_amount == Decimal("4.59")
+    assert records[0].source_key.startswith("PASP2512a.dbc:")
+    assert "descartado" not in repr(records[0])
+
+
+def test_datasus_ftp_names_are_strictly_allowlisted(tmp_path: Path) -> None:
+    common = {
+        "raw_data_dir": tmp_path,
+        "municipality_crosswalk": {"354340": "3543402"},
+        "selected_municipalities": {"3543402"},
+        "selected_states": {"SP"},
+    }
+    sih = SihProductionAdapter(**common)
+    sia = SiaProductionAdapter(**common)
+    cnes = CnesServicesAdapter(**common)
+    assert sih.file_pattern.fullmatch("RDSP2512.dbc")
+    assert sia.file_pattern.fullmatch("PASP2512a.dbc")
+    assert cnes.file_pattern.fullmatch("SRSP2512.dbc")
+    assert not sih.file_pattern.fullmatch("../RDSP2512.dbc")
+    assert not sia.file_pattern.fullmatch("https://example.com/PASP2512a.dbc")
 
 
 def test_siops_preserves_decimal_phases_and_discards_unselected_rows(tmp_path: Path) -> None:
@@ -127,6 +211,23 @@ def test_sim_classifies_cid10_chapters_and_encoded_age() -> None:
     assert sim_age_band("459") == "30_59"
     assert sim_age_band("500") == "80_plus"
     assert sim_age_band("999") == "unknown"
+
+
+def test_sim_checkpoint_requires_facts_in_current_database(tmp_path: Path) -> None:
+    state = {
+        "processed": True,
+        "processed_municipalities": ["3543402"],
+        "etag": '"official-etag"',
+    }
+    common = {
+        "raw_data_dir": tmp_path,
+        "municipality_crosswalk": {"354340": "3543402"},
+        "selected_municipalities": {"3543402"},
+    }
+    without_facts = SimMortalityAdapter(**common, allow_not_modified=False)
+    with_facts = SimMortalityAdapter(**common, allow_not_modified=True)
+    assert not without_facts._can_reuse_checkpoint(state)
+    assert with_facts._can_reuse_checkpoint(state)
 
 
 def _sim_archive(path: Path) -> None:

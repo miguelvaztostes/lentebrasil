@@ -18,6 +18,7 @@ from lente_api.models import (
     HealthEpidemiology,
     HealthEstablishment,
     HealthProduction,
+    HealthService,
     Indicator,
     Municipality,
     Observation,
@@ -266,6 +267,62 @@ def production(
     }
 
 
+@router.get("/services")
+def services(
+    db: DbSession,
+    municipality: str = Query(..., pattern=r"^\d{7}$"),
+    service_code: str | None = Query(None, max_length=60),
+    sus_available: bool | None = None,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    _require_municipality(db, municipality)
+    establishments = (
+        _current(HealthEstablishment)
+        .where(HealthEstablishment.municipality_ibge_code == municipality)
+        .subquery()
+    )
+    service_rows = _current(HealthService).subquery()
+    statement = select(service_rows, establishments.c.cnes_code).join(
+        establishments, establishments.c.id == service_rows.c.establishment_id
+    )
+    if service_code is not None:
+        statement = statement.where(service_rows.c.service_code == service_code)
+    if sus_available is not None:
+        statement = statement.where(service_rows.c.sus_available == sus_available)
+    count = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+    rows = (
+        db.execute(
+            statement.order_by(service_rows.c.service_code, service_rows.c.classification_code)
+            .limit(limit)
+            .offset(offset)
+        )
+        .mappings()
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "cnes_code": row["cnes_code"],
+                "service_code": row["service_code"],
+                "service_name": row["service_name"],
+                "classification_code": row["classification_code"],
+                "classification_name": row["classification_name"],
+                "sus_available": row["sus_available"],
+                "reference_date": row["reference_date"],
+            }
+            for row in rows
+        ],
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "methodology": (
+            "Serviços cadastrados no CNES; o cadastro não comprova oferta, agenda ou "
+            "disponibilidade em tempo real. Nesta versão os rótulos preservam os códigos oficiais."
+        ),
+    }
+
+
 @router.get("/beds")
 def beds(
     db: DbSession,
@@ -474,8 +531,9 @@ def overview(
     establishment_statement = _current(HealthEstablishment).where(
         HealthEstablishment.municipality_ibge_code == municipality
     )
+    establishment_rows = establishment_statement.subquery()
     establishments_count = (
-        db.scalar(select(func.count()).select_from(establishment_statement.subquery())) or 0
+        db.scalar(select(func.count(func.distinct(establishment_rows.c.cnes_code)))) or 0
     )
     aggregate_establishments = db.scalar(
         select(Observation)
@@ -521,6 +579,39 @@ def overview(
     for phase, amount in spending_rows:
         if phase is not None and amount is not None:
             spending_by_phase[phase] = spending_by_phase.get(phase, Decimal(0)) + amount
+    production_rows = db.execute(
+        _current(HealthProduction)
+        .where(
+            HealthProduction.municipality_ibge_code == municipality,
+            func.extract("year", HealthProduction.period_start) == 2025,
+        )
+        .with_only_columns(
+            HealthProduction.care_type,
+            func.sum(HealthProduction.quantity),
+            func.sum(HealthProduction.approved_amount),
+        )
+        .group_by(HealthProduction.care_type)
+    ).all()
+    production_by_type = {
+        care_type: {"quantity": _number(quantity), "approved_amount": _number(amount)}
+        for care_type, quantity, amount in production_rows
+    }
+    ans_indicator = db.scalar(
+        select(Indicator).where(Indicator.code == "ans_health_plan_beneficiary_links")
+    )
+    ans_observation = (
+        db.scalar(
+            select(Observation)
+            .where(
+                Observation.indicator_id == ans_indicator.id,
+                Observation.municipality_ibge_code == municipality,
+            )
+            .order_by(Observation.period_end.desc(), Observation.revision.desc())
+            .limit(1)
+        )
+        if ans_indicator is not None
+        else None
+    )
     return {
         "municipality": {
             "ibge_code": municipality_row.ibge_code,
@@ -570,9 +661,28 @@ def overview(
             ),
         },
         "production": {
-            "availability": "unavailable",
+            "availability": "available" if production_by_type else "unavailable",
+            "reference_period": "2025-12" if production_by_type else None,
+            "items": production_by_type,
             "methodology": (
-                "SIA/SUS e SIH/SUS permanecem indisponíveis até homologação de recurso e schema."
+                "Competência dezembro de 2025. SIA soma procedimentos ambulatoriais aprovados "
+                "por município executor; SIH conta autorizações de internação e seus valores "
+                "aprovados. Nenhuma medida representa pessoas únicas."
+            ),
+        },
+        "supplementary_health": {
+            "availability": "available" if ans_observation is not None else "unavailable",
+            "beneficiary_links": (
+                _number(ans_observation.value) if ans_observation is not None else None
+            ),
+            "reference_period": (
+                ans_observation.period_end.strftime("%Y-%m")
+                if ans_observation is not None
+                else None
+            ),
+            "methodology": (
+                "Vínculos de beneficiários informados pela ANS; uma pessoa pode manter "
+                "mais de um vínculo."
             ),
         },
         "health_spending": {
@@ -593,6 +703,10 @@ def overview(
             _dataset_source(db, "sim_mortality_municipal"),
             _dataset_source(db, "sinasc_births_municipal"),
             _dataset_source(db, "siops_health_expenses"),
+            _dataset_source(db, "sih_production_municipal"),
+            _dataset_source(db, "sia_production_municipal"),
+            _dataset_source(db, "cnes_services"),
+            _dataset_source(db, "ans_beneficiaries_municipal"),
         ],
     }
 

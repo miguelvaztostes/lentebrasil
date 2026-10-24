@@ -140,4 +140,9 @@ A pesquisa normaliza acentos com `translate(lower(...))` no PostgreSQL e usa ín
   nunca trunca códigos recebidos para inferir a identidade.
 - O recurso CNES de 09/10/2026 contém bytes Latin-1/Windows-1252 e não declara charset no `Content-Type`; o parser usa Latin-1 estrito e valida o cabeçalho antes de agregar.
 - Dados CNES do MVP são agregados antes da persistência; nomes, endereços, telefones, e-mails e CNPJs não são copiados para o banco.
+- SIA/SUS usa `PA_QTDAPR` e `PA_VALAPR` por município do estabelecimento executor; SIH/SUS
+  conta linhas de AIH e soma `VAL_TOT` por município do atendimento. A competência homologada é
+  dezembro de 2025 e não deve ser interpretada como acumulado anual.
+- `ans_health_plan_beneficiary_links` soma vínculos no arquivo municipal ANS;
+  vínculo não equivale a pessoa única, atendimento ou cobertura efetiva.
 - Datas de referência, captura e publicação são campos separados.

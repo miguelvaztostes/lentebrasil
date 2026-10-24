@@ -34,6 +34,8 @@ export function HealthDashboard({ code }: { code: string }) {
     .filter((item) => item.count != null && item.count > 0)
     .sort((left, right) => (right.count ?? 0) - (left.count ?? 0))
     .slice(0, 8);
+  const sia = data.production.items.outpatient_procedures_approved;
+  const sih = data.production.items.hospital_admissions_authorizations;
 
   return (
     <div className="space-y-10">
@@ -57,8 +59,10 @@ export function HealthDashboard({ code }: { code: string }) {
         <Metric label="Leitos cadastrados" value={formatCount(data.network.registered_beds)} method={data.network.methodology} />
         <Metric label={`Óbitos SIM ${year}`} value={formatCount(data.epidemiology.total_deaths)} method={data.epidemiology.methodology} />
         <Metric label={`Nascidos vivos SINASC ${year}`} value={formatCount(data.epidemiology.live_births)} method="Registros do SINASC agregados pelo município de residência." />
-        <Metric label="Produção SIA/SIH" value="Não disponível" method={data.production.methodology} />
+        <Metric label={`Procedimentos SIA ${data.production.reference_period ?? ""}`} value={formatCount(sia?.quantity == null ? null : Number(sia.quantity))} method="Procedimentos ambulatoriais aprovados; não representam pessoas únicas." />
+        <Metric label={`Autorizações SIH ${data.production.reference_period ?? ""}`} value={formatCount(sih?.quantity == null ? null : Number(sih.quantity))} method="Autorizações de internação; não representam pessoas únicas." />
         <Metric label={`Despesa paga SIOPS ${data.health_spending.reference_year ?? ""}`} value={formatCurrency(data.health_spending.value)} method={data.health_spending.methodology} />
+        <Metric label={`Vínculos de beneficiários ANS ${data.supplementary_health.reference_period ?? ""}`} value={formatCount(data.supplementary_health.beneficiary_links == null ? null : Number(data.supplementary_health.beneficiary_links))} method={data.supplementary_health.methodology} />
       </section>
 
       <section>
@@ -71,7 +75,7 @@ export function HealthDashboard({ code }: { code: string }) {
       </section>
 
       <section className="grid gap-5 lg:grid-cols-2">
-        <article className="card p-6"><p className="eyebrow">Produção assistencial</p><h2 className="mt-2 text-2xl font-black">SIA/SUS e SIH/SUS</h2><p className="mt-4 text-sm leading-6 text-ink/65">{data.production.methodology}</p></article>
+        <article className="card p-6"><p className="eyebrow">Produção assistencial · {data.production.reference_period ?? "sem carga"}</p><h2 className="mt-2 text-2xl font-black">SIA/SUS e SIH/SUS</h2>{data.production.availability === "available" ? <div className="mt-5 grid grid-cols-2 gap-4"><div><p className="text-xs text-ink/55">Procedimentos ambulatoriais aprovados</p><p className="mt-1 text-2xl font-black">{formatCount(sia?.quantity == null ? null : Number(sia.quantity))}</p><p className="mt-1 text-xs text-ink/50">{formatCurrency(sia?.approved_amount ?? null)}</p></div><div><p className="text-xs text-ink/55">Autorizações de internação</p><p className="mt-1 text-2xl font-black">{formatCount(sih?.quantity == null ? null : Number(sih.quantity))}</p><p className="mt-1 text-xs text-ink/50">{formatCurrency(sih?.approved_amount ?? null)}</p></div></div> : <p className="mt-4 font-bold">Não disponível</p>}<p className="mt-4 text-sm leading-6 text-ink/65">{data.production.methodology}</p>{data.production.availability === "available" && <a className="mt-4 inline-block text-sm font-bold text-teal underline" href={`${API_BASE}/v1/health/production?municipality=${encodeURIComponent(code)}&year=2025`} target="_blank" rel="noreferrer">Consultar procedimentos na API</a>}</article>
         <article className="card p-6"><p className="eyebrow">Financiamento</p><h2 className="mt-2 text-2xl font-black">Gastos municipais em saúde</h2><p className="mt-3 text-3xl font-black">{formatCurrency(data.health_spending.value)}</p><p className="mt-4 text-sm leading-6 text-ink/65">{data.health_spending.methodology}</p>{data.health_spending.availability === "available" && <a className="mt-4 inline-block text-sm font-bold text-teal underline" href={`${API_BASE}/v1/health/spending?municipality=${encodeURIComponent(code)}&year=2025&phase=paid&top_level_only=true`} target="_blank" rel="noreferrer">Consultar fases e rubricas na API</a>}</article>
       </section>
 

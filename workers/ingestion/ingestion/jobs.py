@@ -15,7 +15,9 @@ from ingestion.factory import build_adapter
 
 
 def job_key(source: str, parameters: dict[str, Any]) -> str:
-    canonical = json.dumps(parameters, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    canonical = json.dumps(
+        parameters, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
     digest = hashlib.sha256(canonical.encode()).hexdigest()[:20]
     return f"{source}:{digest}"
 
@@ -42,6 +44,10 @@ def schedule_job(
         "cnes_beds": "cnes_beds_establishments",
         "sinasc_births": "sinasc_births_municipal",
         "siops_health_expenses": "siops_health_expenses",
+        "sih_production": "sih_production_municipal",
+        "sia_production": "sia_production_municipal",
+        "cnes_services": "cnes_services",
+        "ans_beneficiaries": "ans_beneficiaries_municipal",
     }.get(source)
     if dataset_code is None:
         raise ValueError(f"Fonte desconhecida: {source}")
@@ -53,7 +59,9 @@ def schedule_job(
     existing = db.scalar(select(IngestionJob).where(IngestionJob.job_key == key))
     now = datetime.now(UTC)
     if existing is not None:
-        if existing.status in {"success", "failed"} and parameters.get("recurring_seconds"):
+        if existing.status in {"success", "failed"} and parameters.get(
+            "recurring_seconds"
+        ):
             existing.status = "pending"
             existing.scheduled_for = scheduled_for or now
             existing.updated_at = now
@@ -78,13 +86,17 @@ def schedule_job(
     return job
 
 
-def claim_next_job(db: Session, *, stale_after_seconds: int = 3600) -> IngestionJob | None:
+def claim_next_job(
+    db: Session, *, stale_after_seconds: int = 3600
+) -> IngestionJob | None:
     now = datetime.now(UTC)
     stale_before = now - timedelta(seconds=stale_after_seconds)
     stale = list(
         db.scalars(
             select(IngestionJob)
-            .where(IngestionJob.status == "running", IngestionJob.locked_at < stale_before)
+            .where(
+                IngestionJob.status == "running", IngestionJob.locked_at < stale_before
+            )
             .with_for_update(skip_locked=True)
         )
     )
@@ -100,7 +112,9 @@ def claim_next_job(db: Session, *, stale_after_seconds: int = 3600) -> Ingestion
         .where(
             IngestionJob.status.in_(["pending", "retry"]),
             IngestionJob.scheduled_for <= now,
-            or_(IngestionJob.locked_at.is_(None), IngestionJob.locked_at < stale_before),
+            or_(
+                IngestionJob.locked_at.is_(None), IngestionJob.locked_at < stale_before
+            ),
         )
         .order_by(IngestionJob.scheduled_for, IngestionJob.created_at)
         .with_for_update(skip_locked=True)
@@ -120,7 +134,9 @@ def claim_next_job(db: Session, *, stale_after_seconds: int = 3600) -> Ingestion
     return job
 
 
-def execute_job(db: Session, job: IngestionJob, *, raw_data_dir: Path) -> dict[str, Any]:
+def execute_job(
+    db: Session, job: IngestionJob, *, raw_data_dir: Path
+) -> dict[str, Any]:
     parameters = dict(job.parameters)
     source = parameters.pop("source")
     recurring_seconds = parameters.pop("recurring_seconds", None)
@@ -145,7 +161,9 @@ def execute_job(db: Session, job: IngestionJob, *, raw_data_dir: Path) -> dict[s
         job.lock_token = None
         if recurring_seconds:
             job.status = "pending"
-            job.scheduled_for = now + timedelta(seconds=max(3600, int(recurring_seconds)))
+            job.scheduled_for = now + timedelta(
+                seconds=max(3600, int(recurring_seconds))
+            )
         else:
             job.status = "success"
         job.updated_at = now

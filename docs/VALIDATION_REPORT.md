@@ -339,3 +339,42 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   não é apresentada como zero nem como cobertura disponível.
 - Migração limpa, ciclo `0013 → 0012 → 0013`, Ruff, formatação e 41 testes em PostgreSQL 16
   descartável foram aprovados. O frontend passou no teste de conteúdo, TypeScript e build Next.js.
+
+### Complemento homologado — produção DATASUS, serviços CNES e ANS — 23/10/2026
+
+- A indisponibilidade anterior foi localizada no transporte: o servidor DATASUS não entregou os
+  DBCs por HTTP/HTTPS, mas respondeu por FTP nativo em modo passivo. Foram homologados
+  `RDSP2512.dbc` (SIH), as quatro partes `PASP2512[a-d].dbc` (SIA) e `SRSP2512.dbc`
+  (serviços CNES). A ANS foi obtida por HTTPS em `tb_bb_2025-12.dbc`.
+- A competência é dezembro/2025 e representa um mês, não o total anual. SIA usa município do
+  estabelecimento executor e soma procedimentos/valores aprovados; SIH usa município do
+  atendimento, conta autorizações e soma `VAL_TOT`. As fases e unidades não são combinadas.
+- Carga controlada real para Ribeirão Preto, Campinas e São Paulo: 10.127 agregados SIA, 3.028
+  agregados SIH, 48.806 cadastros de serviço/classificação CNES e três totais municipais ANS,
+  sem itens rejeitados. Todos os fatos permaneceram na revisão 1.
+- As três amostras foram conferidas por soma dos fatos de revisão corrente e pela resposta da API:
+
+| Município | SIA procedimentos | SIA valor aprovado | SIH autorizações | SIH valor aprovado | Serviços CNES | Vínculos ANS |
+|---|---:|---:|---:|---:|---:|---:|
+| Ribeirão Preto/SP (3543402) | 3.201.139 | R$ 20.382.557,14 | 8.074 | R$ 17.476.536,06 | 2.803 | 588.466 |
+| Campinas/SP (3509502) | 4.529.200 | R$ 23.290.160,06 | 6.507 | R$ 17.380.522,24 | 5.356 | 1.047.329 |
+| São Paulo/SP (3550308) | 33.764.121 | R$ 180.770.793,51 | 57.638 | R$ 137.216.142,98 | 40.647 | 10.131.751 |
+
+- O arquivo ANS mede vínculos, não pessoas únicas. `TP_VIGENCI` classifica a época de contratação
+  do plano e não foi tratado como estado ativo/inativo. CNES mede cadastro, não disponibilidade
+  real; 1.334, 2.573 e 22.175 cadastros de serviço/classificação, respectivamente, indicaram
+  atendimento SUS.
+- Os DBC/DBF foram removidos da área temporária após a agregação. Os campos individuais de SIA,
+  SIH e os campos fiscais do CNES não foram persistidos. Um arquivo temporário preexistente do
+  FNDE permaneceu intacto por não pertencer a esta etapa.
+- SISAB foi reclassificado de “restrito” para relatório público, porém segue sem conector: a
+  exportação depende de estado JSF e não há API ou artefato versionado estável homologado. A
+  ausência continua indisponível, nunca zero.
+- Na retomada de 24/10/2026, um checkpoint SIM persistido no volume coexistia com um banco sem
+  os fatos correspondentes. O conector passou a aceitar `304 Not Modified` somente quando todos
+  os municípios pedidos já têm fatos no banco; sem essa cobertura, baixa e recompõe o agregado.
+  A recomposição publicou 93 linhas SIM, além de três linhas SINASC e 277 registros de leitos.
+- Validação final: 45 testes aprovados em PostgreSQL 16 descartável; migração limpa até `0014` e
+  ciclo `0014 → 0013 → 0014` aprovados; Ruff, formatação e `git diff --check` aprovados. O
+  frontend passou no teste de conteúdo, TypeScript e build Next.js com 23 rotas. O audit de
+  dependências de produção (`npm audit --omit=dev`) não encontrou vulnerabilidades.

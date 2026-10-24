@@ -260,7 +260,18 @@ export type HealthOverview = {
     age_bands: HealthBreakdown[];
     methodology: string;
   };
-  production: { availability: "available" | "unavailable"; methodology: string };
+  production: {
+    availability: "available" | "unavailable";
+    reference_period: string | null;
+    items: Record<string, { quantity: string | null; approved_amount: string | null }>;
+    methodology: string;
+  };
+  supplementary_health: {
+    availability: "available" | "unavailable";
+    beneficiary_links: string | null;
+    reference_period: string | null;
+    methodology: string;
+  };
   health_spending: {
     availability: "available" | "unavailable";
     value: string | null;

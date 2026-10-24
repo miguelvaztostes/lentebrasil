@@ -1,19 +1,19 @@
 # Auditoria de fontes oficiais de saúde
 
-Verificação realizada em 22/10/2026. O inventário é uma lista de candidatos; somente uma linha marcada como **integrada** possui conector e dados aptos à publicação. Uma página encontrada ou um endpoint documentado não equivale a dado validado.
+Verificação atualizada em 23/10/2026. O inventário é uma lista de candidatos; somente uma linha marcada como **integrada** possui conector e dados aptos à publicação. Uma página encontrada ou um endpoint documentado não equivale a dado validado.
 
 | Conjunto | Canal oficial observado | Direito/status | Situação operacional |
 |---|---|---|---|
-| CNES estabelecimentos | API Dados Abertos MS / cadastro CNES | dados públicos; evitar campos pessoais | integração agregada anterior mantida; expansão de estabelecimentos, leitos e serviços modelada, mas respostas do Swagger não foram homologadas nesta execução |
+| CNES estabelecimentos | API Dados Abertos MS / cadastro CNES | dados públicos; evitar campos pessoais | integração agregada anterior mantida; estabelecimentos ausentes no cadastro analítico são criados somente com código CNES e tipo ao carregar serviços oficiais |
 | CNES leitos | [dataset Hospitais e Leitos](https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos), ZIP/CSV anual | cadastro público; licença CC BY-ND 3.0 informada pelo portal | **integrada** na competência mais recente, com campos de contato e endereço descartados |
-| CNES serviços | endpoints documentados no Swagger DEMAS | cadastro público | recurso descoberto; sem resposta/schema validado neste ambiente; não publicado |
-| SIH/SUS | endpoint documentado no Swagger DEMAS e arquivos DATASUS/TabNet | agregado público conforme recurso | descoberto; não presumido como API estável; sem conector homologado |
-| SIA/SUS | endpoint documentado no Swagger DEMAS e arquivos DATASUS/TabNet | agregado público conforme recurso | descoberto; sem conector homologado |
+| CNES serviços | FTP oficial DATASUS, arquivo `SR` por UF/competência | cadastro público; campos fiscais descartados | **integrada** para dezembro/2025; serviço/classificação e vínculo SUS preservados por código |
+| SIH/SUS | FTP oficial DATASUS, arquivo `RD` por UF/competência | agregado público; microdados temporários | **integrada** para dezembro/2025 por município do atendimento, procedimento, especialidade e complexidade |
+| SIA/SUS | FTP oficial DATASUS, todas as partes `PA` por UF/competência | agregado público; campos pessoais descartados | **integrada** para dezembro/2025 por município executor, procedimento e tipo de unidade |
 | SIM | [dataset oficial](https://dadosabertos.saude.gov.br/dataset/sim) e ZIP anual | dados abertos anonimizados; atribuição ao MS | **integrada** para mortalidade não fetal agregada por município de residência, capítulo CID-10 ou faixa etária ampla |
 | SINASC | [dataset oficial](https://dadosabertos.saude.gov.br/dataset/sistema-de-informacao-sobre-nascidos-vivos-sinasc) e ZIP anual | dados abertos do SUS; atribuição ao MS | **integrada** para nascidos vivos de 2024 agregados por município de residência |
-| SISAB | portal e relatórios e-Gestor APS | acesso e granularidade variam | restrito/relatório; não integrado |
+| SISAB | [relatórios públicos](https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauProducao.xhtml) | página pública; exportação dinâmica | página abre sem autenticação, mas a exportação depende de estado JSF e não oferece API ou arquivo versionado estável; ainda não integrada |
 | SIOPS | [downloads oficiais do FNS](https://portalfns.saude.gov.br/siops/siops-downloads/), ZIP/CSV municipal | dados fiscais públicos | **integrada** para o fechamento de 2025 (6º bimestre), preservando fonte, subfunção, natureza e fase contábil |
-| ANS | [diretório DBC de beneficiários municipais](https://dadosabertos.ans.gov.br/FTP/Base_de_dados/Microdados/dados_dbc/beneficiarios/municipios/) | dados abertos conforme metadados ANS | arquivos mensais verificados no índice, sem parser DBC homologado |
+| ANS | [diretório DBC de beneficiários municipais](https://dadosabertos.ans.gov.br/FTP/Base_de_dados/Microdados/dados_dbc/beneficiarios/municipios/) | dados abertos conforme metadados ANS | **integrada** para dezembro/2025; publica vínculos municipais, não pessoas únicas |
 | Epidemiologia (arboviroses e outros) | endpoints documentados no Swagger e conjuntos OpenDataSUS | depende do conjunto | candidatos; não publicados sem validar definição (notificado/confirmado), período, revisão e risco de reidentificação |
 
 ## Recurso SIM homologado
@@ -66,11 +66,27 @@ Não se calculam taxas padronizadas por população nesta etapa: denominador, an
 | Campinas/SP (3509502) | 11.465 |
 | São Paulo/SP (3550308) | 120.789 |
 
+## SIA/SUS, SIH/SUS, CNES serviços e ANS homologados
+
+- A falha anterior era de transporte: `ftp.datasus.gov.br` não respondeu em HTTP/HTTPS, mas o
+  FTP nativo na porta 21 respondeu e permitiu listagem, tamanho e download em modo passivo.
+- O conector usa host, diretórios e expressões de nome fixos. Nenhuma URL fornecida por usuário é
+  executada. Tamanho, hash, schema, competência e recorte municipal são validados.
+- Competência: dezembro de 2025, um mês fechado. Não é total anual. SIH usa `RD`; SIA usa todas
+  as partes `PA` publicadas para a UF; CNES usa `SR`; ANS usa `tb_bb_2025-12.dbc`.
+- A conversão DBC usa `pyreaddbc 2.0.4` (AGPL-3.0) e `dbfread 2.0.7`. A aplicação deve manter
+  as obrigações da licença ao redistribuir a imagem. Cada DBF temporário é processado e removido.
+- SIA descarta autorização, CNS profissional, CNPJ/CPF, idade, sexo, raça/cor e município do
+  paciente. SIH descarta AIH, CEP, nascimento e demais campos individuais. CNES descarta CPF/CNPJ.
+- SIA mede procedimentos aprovados; SIH mede autorizações de internação; CNES mede cadastro;
+  ANS mede vínculos. Em ANS, `TP_VIGENCI` separa planos anteriores/posteriores à Lei 9.656/1998,
+  portanto não é usado como filtro de vínculo ativo. Nenhum número equivale a pessoas únicas.
+
 ## Limitações verificadas
 
-O host da API Dados Abertos do Ministério da Saúde apresentou reset/erro de gateway para chamadas diretas a partir do ambiente de execução. Arquivos oficiais estáveis permitiram homologar leitos, SINASC e SIOPS sem presumir que o Swagger é uma API operacional. SIA/SUS, SIH/SUS, serviços CNES, SISAB, ANS e conjuntos epidemiológicos adicionais ficam explicitamente indisponíveis na interface, nunca com valor zero.
+O host da API Dados Abertos do Ministério da Saúde apresentou reset/erro de gateway para chamadas diretas. A distribuição FTP oficial contornou o problema para SIA/SUS, SIH/SUS e CNES sem presumir que o Swagger é uma API operacional. SISAB e conjuntos epidemiológicos adicionais permanecem indisponíveis, nunca com valor zero.
 
-Em 23/10/2026, tentativas `HEAD` e `GET` ao host oficial `ftp.datasus.gov.br`, inclusive para o caminho esperado `SIHSUS/200801_/Dados/RDSP2501.dbc`, expiraram por timeout de conexão neste ambiente. Sem baixar o DBC não foi possível validar hash, dicionário, período ou três amostras; por isso SIA/SIH não foram promovidos a integração apenas com base no padrão nominal dos arquivos.
+Em 23/10/2026 confirmou-se que as tentativas anteriores usavam o protocolo errado. O servidor não expõe esses arquivos em HTTP/HTTPS; FTP passivo funcionou. Essa distinção é monitorada pelo `discover()` do conector.
 
 ## SIOPS municipal 2025 homologado
 

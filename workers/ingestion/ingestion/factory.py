@@ -5,11 +5,23 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from lente_api.models import Agency, GeoCodeMapping, GeoUnit, Municipality
+from lente_api.models import (
+    Agency,
+    GeoCodeMapping,
+    GeoUnit,
+    HealthEpidemiology,
+    Municipality,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ingestion.adapters.cnes import CnesAdapter
+from ingestion.adapters.datasus_health import (
+    AnsBeneficiariesAdapter,
+    CnesServicesAdapter,
+    SiaProductionAdapter,
+    SihProductionAdapter,
+)
 from ingestion.adapters.education import InepCensoEscolarAdapter, InepIdebAdapter
 from ingestion.adapters.federal_education import (
     FndePnaeAdapter,
@@ -76,10 +88,14 @@ def build_adapter(
     entity_identifiers: list[str] | None = None,
     update_mode: bool = True,
 ) -> Any:
-    municipalities = select_municipalities(db, municipality_codes=municipality_codes, uf=uf)
+    municipalities = select_municipalities(
+        db, municipality_codes=municipality_codes, uf=uf
+    )
     codes = [item.ibge_code for item in municipalities]
     today = datetime.now(UTC).date()
-    parsed_start = date.fromisoformat(start_date) if isinstance(start_date, str) else start_date
+    parsed_start = (
+        date.fromisoformat(start_date) if isinstance(start_date, str) else start_date
+    )
     parsed_end = date.fromisoformat(end_date) if isinstance(end_date, str) else end_date
     window_end = parsed_end or today
     window_start = parsed_start or (window_end - timedelta(days=1))
@@ -142,13 +158,17 @@ def build_adapter(
         first = start_year if start_year is not None else default_year
         last = end_year if end_year is not None else first
         effective_annexes = (
-            None if statement_type == "dca" and annexes == ["RREO-Anexo 01"] else annexes
+            None
+            if statement_type == "dca" and annexes == ["RREO-Anexo 01"]
+            else annexes
         )
         selected_annexes = effective_annexes or (
             ["RGF-Anexo 01"] if statement_type == "rgf" else ["DCA-Anexo I-AB"]
         )
         if len(selected_annexes) != 1:
-            raise ValueError("Cada job fiscal Siconfi deve selecionar exatamente um anexo")
+            raise ValueError(
+                "Cada job fiscal Siconfi deve selecionar exatamente um anexo"
+            )
         return SiconfiStatementAdapter(
             raw_data_dir=raw_data_dir,
             statement_type=statement_type,
@@ -168,7 +188,8 @@ def build_adapter(
         return IbgePopulationAdapter(
             raw_data_dir=raw_data_dir,
             geographies={
-                item.ibge_code: {"name": item.name, "state": item.state} for item in municipalities
+                item.ibge_code: {"name": item.name, "state": item.state}
+                for item in municipalities
             },
             period_range=period_range,
             resource_version=resource_version,
@@ -201,7 +222,9 @@ def build_adapter(
         ).all()
         return CnesAdapter(
             raw_data_dir=raw_data_dir,
-            municipality_crosswalk={external: canonical for external, canonical in mappings},
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
             selected_municipalities=set(codes),
             resource_version=resource_version,
         )
@@ -217,11 +240,24 @@ def build_adapter(
                 GeoUnit.active.is_(True),
             )
         ).all()
+        published_municipalities = set(
+            db.scalars(
+                select(HealthEpidemiology.municipality_ibge_code)
+                .where(
+                    HealthEpidemiology.source_system == "sim",
+                    HealthEpidemiology.municipality_ibge_code.in_(codes),
+                )
+                .distinct()
+            )
+        )
         return SimMortalityAdapter(
             raw_data_dir=raw_data_dir,
-            municipality_crosswalk={external: canonical for external, canonical in mappings},
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
             selected_municipalities=set(codes),
             year=2024,
+            allow_not_modified=set(codes) <= published_municipalities,
         )
     if source == "cnes_beds":
         mappings = db.execute(
@@ -235,7 +271,9 @@ def build_adapter(
         ).all()
         return CnesBedsAdapter(
             raw_data_dir=raw_data_dir,
-            municipality_crosswalk={external: canonical for external, canonical in mappings},
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
             selected_municipalities=set(codes),
         )
     if source == "sinasc_births":
@@ -252,7 +290,9 @@ def build_adapter(
         ).all()
         return SinascBirthsAdapter(
             raw_data_dir=raw_data_dir,
-            municipality_crosswalk={external: canonical for external, canonical in mappings},
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
             selected_municipalities=set(codes),
             year=2024,
         )
@@ -270,27 +310,76 @@ def build_adapter(
         ).all()
         return SiopsHealthExpenseAdapter(
             raw_data_dir=raw_data_dir,
-            municipality_crosswalk={external: canonical for external, canonical in mappings},
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
             selected_municipalities=set(codes),
             year=2025,
         )
+    if source in {
+        "sih_production",
+        "sia_production",
+        "cnes_services",
+        "ans_beneficiaries",
+    }:
+        if start_year not in {None, 2025} or end_year not in {None, 2025}:
+            raise ValueError(
+                "A competência homologada para este conector é dezembro de 2025"
+            )
+        mappings = db.execute(
+            select(GeoCodeMapping.external_code, GeoUnit.code)
+            .join(GeoUnit, GeoUnit.id == GeoCodeMapping.geo_unit_id)
+            .where(
+                GeoCodeMapping.code_system == "CNES_MUNICIPALITY",
+                GeoCodeMapping.valid_to.is_(None),
+                GeoUnit.active.is_(True),
+            )
+        ).all()
+        common = {
+            "raw_data_dir": raw_data_dir,
+            "municipality_crosswalk": {
+                external: canonical for external, canonical in mappings
+            },
+            "selected_municipalities": set(codes),
+        }
+        if source == "ans_beneficiaries":
+            return AnsBeneficiariesAdapter(**common)
+        adapter = {
+            "sih_production": SihProductionAdapter,
+            "sia_production": SiaProductionAdapter,
+            "cnes_services": CnesServicesAdapter,
+        }[source]
+        return adapter(
+            **common,
+            selected_states={item.state for item in municipalities},
+            year=2025,
+            month=12,
+        )
     if source == "censo_escolar":
         if start_year not in {None, 2024} or end_year not in {None, 2024}:
-            raise ValueError("Apenas o schema homologado do Censo Escolar 2024 está disponível")
+            raise ValueError(
+                "Apenas o schema homologado do Censo Escolar 2024 está disponível"
+            )
         return InepCensoEscolarAdapter(
             raw_data_dir=raw_data_dir, selected_municipalities=set(codes)
         )
     if source == "ideb":
         if start_year not in {None, 2025} or end_year not in {None, 2025}:
             raise ValueError("Apenas o pacote homologado do Ideb 2025 está disponível")
-        return InepIdebAdapter(raw_data_dir=raw_data_dir, selected_municipalities=set(codes))
+        return InepIdebAdapter(
+            raw_data_dir=raw_data_dir, selected_municipalities=set(codes)
+        )
     if source == "saeb":
         if start_year not in {None, 2023} or end_year not in {None, 2023}:
             raise ValueError("Apenas o pacote homologado do Saeb 2023 está disponível")
-        return InepSaebAdapter(raw_data_dir=raw_data_dir, selected_municipalities=set(codes))
+        return InepSaebAdapter(
+            raw_data_dir=raw_data_dir, selected_municipalities=set(codes)
+        )
     if source == "fnde_pnae":
         if start_year not in {None, 2024} or end_year not in {None, 2024}:
-            raise ValueError("Apenas a planilha homologada do PNAE 2024 está disponível")
+            raise ValueError(
+                "Apenas a planilha homologada do PNAE 2024 está disponível"
+            )
         return FndePnaeAdapter(
             raw_data_dir=raw_data_dir,
             selected_municipalities=set(codes),

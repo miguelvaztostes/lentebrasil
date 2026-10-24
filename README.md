@@ -24,8 +24,9 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   receitas TCE-SP/Audesp por rubrica e despesas mensais agregadas por fase, sem consolidação
   indevida entre fontes e sem persistir dados de fornecedores da API de despesas.
 - Coleta real e agregada do CNES, sem copiar nomes, contatos, endereços ou CNPJs para a base analítica.
-- Saúde municipal com hospitais/leitos CNES, mortalidade SIM e nascidos vivos SINASC, mantendo
-  microdados fora da base publicada e distinguindo cadastro, capacidade e eventos vitais.
+- Saúde municipal com hospitais/leitos/serviços CNES, produção SIA/SUS e SIH/SUS, vínculos ANS,
+  gastos SIOPS, mortalidade SIM e nascidos vivos SINASC, mantendo microdados fora da base
+  publicada e distinguindo cadastro, capacidade, produção, gasto e eventos vitais.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
   preservando supressões e distinguindo previsão de transferência de execução financeira.
 - Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
@@ -77,6 +78,10 @@ docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_
 docker compose run --rm ingestion python -m ingestion.cli ingest --source tcesp_expenses --dry-run --municipalities 3543402 --start-year 2025 --periods 1 --max-requests 1
 docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes_beds --dry-run --municipalities 3543402
 docker compose run --rm ingestion python -m ingestion.cli ingest --source sinasc_births --dry-run --municipalities 3543402 --start-year 2024 --end-year 2024
+docker compose run --rm ingestion python -m ingestion.cli ingest --source sih_production --dry-run --municipalities 3543402
+docker compose run --rm ingestion python -m ingestion.cli ingest --source sia_production --dry-run --municipalities 3543402
+docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes_services --dry-run --municipalities 3543402
+docker compose run --rm ingestion python -m ingestion.cli ingest --source ans_beneficiaries --dry-run --municipalities 3543402
 ```
 
 Coletar e persistir:
@@ -84,6 +89,10 @@ Coletar e persistir:
 ```bash
 docker compose run --rm ingestion python -m ingestion.cli ingest --source all
 ```
+
+`--source all` inclui arquivos anuais volumosos de saúde e não é recomendado para uma carga
+rápida de demonstração. Para a demo, execute somente as fontes necessárias e informe um recorte
+municipal explícito; os conectores SIA/SIH/CNES/ANS acima usam dezembro/2025.
 
 Sincronizar a dimensão territorial oficial e coletar uma janela controlada para três municípios:
 
@@ -150,7 +159,8 @@ Principais rotas:
 - `GET /api/v1/health/epidemiology?municipality=3543402&year=2024`
 - `GET /api/v1/health/establishments?municipality=3543402`
 - `GET /api/v1/health/beds?municipality=3543402&active=true`
-- `GET /api/v1/health/production?municipality=3543402&year=2024`
+- `GET /api/v1/health/services?municipality=3543402`
+- `GET /api/v1/health/production?municipality=3543402&year=2025`
 - `GET /api/v1/health/exports/epidemiology.csv?municipality=3543402&year=2024`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
