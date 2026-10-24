@@ -21,6 +21,16 @@
 
 Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa que houve resposta de dados verificável; não significa endosso institucional ao Lente Ribeirão.
 
+## Onda setorial — 24/10/2026
+
+- SIDRA 5938, Novo CAGED 2025-12 e SENATRAN 2026-09 foram homologados e carregados para três
+  municípios. Evidências, hashes, reconciliação e pendências dos IDs LNT estão em
+  `SECTOR_SOURCES.md`.
+- Proteção social permanece indisponível: a API CGU requer token e o CECAD testado não entregou
+  recurso versionado estável. Isso não é publicado como zero.
+- SINISA e ANEEL foram confirmados como fontes oficiais, mas não como conectores publicados nesta
+  etapa; planilhas/glossários e descarte LGPD ainda precisam de homologação.
+
 | Fonte/dataset | Status | Recurso verificado | Formato/licença | Evidência e decisão |
 |---|---|---|---|---|
 | IBGE Localidades | `confirmed` | `https://servicodados.ibge.gov.br/api/v1/localidades/municipios/3543402` | JSON; uso com atribuição ao IBGE, termos específicos a revisar | HTTP 200; retornou código `3543402`, Ribeirão Preto/SP. Usado para validar domínio geográfico. |

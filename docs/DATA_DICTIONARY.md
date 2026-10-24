@@ -146,3 +146,16 @@ A pesquisa normaliza acentos com `translate(lower(...))` no PostgreSQL e usa ín
 - `ans_health_plan_beneficiary_links` soma vínculos no arquivo municipal ANS;
   vínculo não equivale a pessoa única, atendimento ou cobertura efetiva.
 - Datas de referência, captura e publicação são campos separados.
+
+## Economia, trabalho, social e infraestrutura
+
+| Tabela | Grão | Regra pública |
+|---|---|---|
+| `economic_activities` | sistema/classificação/código | Setores amplos do PIB e seções CNAE 2.0 permanecem classificações distintas. |
+| `economy_facts` | município/ano/métrica/setor/revisão | PIB e VAB em BRL nominal; ausência/sigilo é `NULL`, nunca zero. |
+| `labor_facts` | município/mês/seção CNAE/revisão | Admissões, desligamentos e saldo do Novo CAGED; fluxo não é estoque nem informalidade. |
+| `social_programs`, `social_benefit_facts` | programa e município/período/revisão | Estrutura pronta para agregados oficiais; nenhuma linha é criada sem recurso homologado. |
+| `infrastructure_services`, `infrastructure_facts` | serviço e município/data/métrica/revisão | Frota, saneamento e energia não compartilham semântica; o primeiro recurso publicado é a frota SENATRAN. |
+
+PIB/VAB usa `NUMERIC(24,6)` e `price_basis=current_prices`. CAGED preserva a competência mensal e
+SENATRAN a data de referência. Série nacional como IPCA ou Selic nunca recebe código municipal.

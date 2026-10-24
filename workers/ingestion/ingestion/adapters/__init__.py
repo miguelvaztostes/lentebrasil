@@ -14,6 +14,11 @@ from ingestion.adapters.health import (
     SiopsHealthExpenseAdapter,
 )
 from ingestion.adapters.ibge import IbgePopulationAdapter
+from ingestion.adapters.sectors import (
+    IbgePibAdapter,
+    NovoCagedAdapter,
+    SenatranFleetAdapter,
+)
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
 from ingestion.adapters.transparency import (
     PncpContractAdapter,
@@ -45,6 +50,9 @@ ADAPTERS = {
     "sia_production": SiaProductionAdapter,
     "cnes_services": CnesServicesAdapter,
     "ans_beneficiaries": AnsBeneficiariesAdapter,
+    "ibge_pib": IbgePibAdapter,
+    "novo_caged": NovoCagedAdapter,
+    "senatran_fleet": SenatranFleetAdapter,
 }
 
 __all__ = [
@@ -54,12 +62,15 @@ __all__ = [
     "CnesBedsAdapter",
     "CnesServicesAdapter",
     "FndePnaeAdapter",
+    "IbgePibAdapter",
     "IbgePopulationAdapter",
     "InepCensoEscolarAdapter",
     "InepIdebAdapter",
     "InepSaebAdapter",
+    "NovoCagedAdapter",
     "PncpContractAdapter",
     "PncpProcurementAdapter",
+    "SenatranFleetAdapter",
     "SiaProductionAdapter",
     "SiconfiRreoAdapter",
     "SiconfiStatementAdapter",

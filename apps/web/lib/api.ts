@@ -285,6 +285,12 @@ export type HealthOverview = {
 
 export type Paged<T> = { items: T[]; count: number; limit: number; offset: number; notice?: string; methodology?: string };
 
+export type SectorSource = { dataset: string; provider: string; url: string; document_url: string; license: string | null; retrieved_at: string; published_at: string | null; sha256: string; source_status: string; connector_status: string; publication_status: string };
+export type EconomyFact = { municipality_ibge_code: string; year: number; metric: string; activity: { code: string; label: string } | null; value: string | null; unit: string; price_basis: string | null; availability_status: string; source: SectorSource };
+export type LaborFact = { municipality_ibge_code: string; period_start: string; period_end: string; section: { code: string; label: string }; admissions: number; dismissals: number; balance: number; availability_status: string; source: SectorSource };
+export type InfrastructureFact = { municipality_ibge_code: string; reference_date: string; service: { code: string; label: string; type: string }; metric: string; value: string | null; unit: string; availability_status: string; source: SectorSource };
+export type SectorOverview = { municipality: Municipality; economy: Paged<EconomyFact> & { methodology: string }; labor: Paged<LaborFact> & { methodology: string }; infrastructure: Paged<InfrastructureFact> & { methodology: string }; social: { availability: "available" | "unavailable"; items: unknown[]; reason: string; catalog_sources: Array<{ id: string; title: string; status: string }> }; notice: string };
+
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE}/v1${path}`, {
     headers: { Accept: "application/json" },

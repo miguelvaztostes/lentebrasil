@@ -4,6 +4,22 @@ Data da validação: 09/10/2026
 Município: Ribeirão Preto/SP (`3543402`)  
 Escopo: MVP funcional, com fontes reais e sem dados simulados
 
+## Onda setorial — 24/10/2026
+
+- SIDRA/PIB: 63 fatos validados para Ribeirão Preto, Campinas e São Paulo, 2021–2023; zero
+  rejeições. PIB total 2023 foi conciliado nas três amostras e VAB indisponível em 2022/2023
+  permaneceu nulo.
+- Novo CAGED: arquivo 7z de 44.879.645 bytes e TXT de 382.538.259 bytes processado linha a linha;
+  59 agregados município/seção, zero rejeições e saldo conciliado nas três amostras.
+- SENATRAN: 66 fatos (22 por município), zero rejeições; cada total municipal confere com a soma
+  dos tipos. Uma divergência de nome local em Campinas foi corrigida pela sincronização oficial
+  do IBGE, sem fuzzy match.
+- Testes cobrem schema, unidade monetária, ausência versus zero, descarte do 7z, conciliação
+  CAGED/SENATRAN, rotas somente leitura, paginação e CSV.
+- Validação final em PostgreSQL isolado e migrado do zero: `50 passed`, com uma advertência de
+  depreciação Starlette/httpx já existente; testes de conteúdo e typecheck web aprovados, e build
+  de produção Next.js concluído com todas as 18 rotas.
+
 ## Etapa A — auditoria e estrutura base
 
 ### Componentes concluídos

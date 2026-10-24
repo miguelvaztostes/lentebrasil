@@ -12,3 +12,12 @@ def test_health_contract() -> None:
         "version": "0.1.0",
     }
     assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_sector_routes_are_public_read_only_contracts() -> None:
+    paths = TestClient(app).get("/api/openapi.json").json()["paths"]
+    assert "/api/v1/sectors/economy" in paths
+    assert "/api/v1/sectors/labor" in paths
+    assert "/api/v1/sectors/infrastructure" in paths
+    assert "/api/v1/sectors/overview" in paths
+    assert set(paths["/api/v1/sectors/economy"]) == {"get"}

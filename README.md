@@ -29,6 +29,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   publicada e distinguindo cadastro, capacidade, produção, gasto e eventos vitais.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
   preservando supressões e distinguindo previsão de transferência de execução financeira.
+- Economia e trabalho com PIB/VAB municipal SIDRA e fluxo mensal do Novo CAGED por seção CNAE;
+  infraestrutura com frota registrada SENATRAN, sem atribuir índices nacionais a municípios.
 - Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
   municípios, crosswalks explícitos e histórico cadastral.
 - Jobs persistidos no PostgreSQL com lock, checkpoint, retomada, retry e backfill por janela.
@@ -82,6 +84,9 @@ docker compose run --rm ingestion python -m ingestion.cli ingest --source sih_pr
 docker compose run --rm ingestion python -m ingestion.cli ingest --source sia_production --dry-run --municipalities 3543402
 docker compose run --rm ingestion python -m ingestion.cli ingest --source cnes_services --dry-run --municipalities 3543402
 docker compose run --rm ingestion python -m ingestion.cli ingest --source ans_beneficiaries --dry-run --municipalities 3543402
+docker compose run --rm ingestion python -m ingestion.cli ingest --source ibge_pib --dry-run --municipalities 3543402 --start-year 2021 --end-year 2023
+docker compose run --rm ingestion python -m ingestion.cli ingest --source novo_caged --dry-run --municipalities 3543402 --start-year 2025 --end-year 2025 --periods 12
+docker compose run --rm ingestion python -m ingestion.cli ingest --source senatran_fleet --dry-run --municipalities 3543402 --start-year 2026 --end-year 2026
 ```
 
 Coletar e persistir:
@@ -90,9 +95,10 @@ Coletar e persistir:
 docker compose run --rm ingestion python -m ingestion.cli ingest --source all
 ```
 
-`--source all` inclui arquivos anuais volumosos de saúde e não é recomendado para uma carga
-rápida de demonstração. Para a demo, execute somente as fontes necessárias e informe um recorte
-municipal explícito; os conectores SIA/SIH/CNES/ANS acima usam dezembro/2025.
+`--source all` inclui arquivos anuais volumosos de saúde e o microdado mensal do Novo CAGED;
+não é recomendado para uma carga rápida de demonstração. Para a demo, execute somente as fontes
+necessárias e informe um recorte municipal explícito; os conectores SIA/SIH/CNES/ANS acima usam
+dezembro/2025.
 
 Sincronizar a dimensão territorial oficial e coletar uma janela controlada para três municípios:
 
@@ -162,6 +168,11 @@ Principais rotas:
 - `GET /api/v1/health/services?municipality=3543402`
 - `GET /api/v1/health/production?municipality=3543402&year=2025`
 - `GET /api/v1/health/exports/epidemiology.csv?municipality=3543402&year=2024`
+- `GET /api/v1/sectors/overview?municipality=3543402`
+- `GET /api/v1/sectors/economy?municipality=3543402&start_year=2021&end_year=2023`
+- `GET /api/v1/sectors/labor?municipality=3543402&section=G`
+- `GET /api/v1/sectors/infrastructure?municipality=3543402&service_type=transport`
+- `GET /api/v1/sectors/exports/economy.csv?municipality=3543402`
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
 O resumo legado `/dashboard/summary` permanece disponível e aceita `?municipality=`, usando

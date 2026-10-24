@@ -5,13 +5,6 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from lente_api.models import (
-    Agency,
-    GeoCodeMapping,
-    GeoUnit,
-    HealthEpidemiology,
-    Municipality,
-)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,6 +28,14 @@ from ingestion.adapters.health import (
     SiopsHealthExpenseAdapter,
 )
 from ingestion.adapters.ibge import IbgePopulationAdapter
+from ingestion.adapters.sectors import (
+    IbgePibAdapter,
+    NovoCagedAdapter,
+    SenatranFleetAdapter,
+)
+from ingestion.adapters.sectors import (
+    normalize_name as normalize_sector_name,
+)
 from ingestion.adapters.siconfi import SiconfiRreoAdapter
 from ingestion.adapters.transparency import (
     PncpContractAdapter,
@@ -43,6 +44,13 @@ from ingestion.adapters.transparency import (
     TceSpExpenseAdapter,
     TceSpRevenueAdapter,
     normalize_name,
+)
+from lente_api.models import (
+    Agency,
+    GeoCodeMapping,
+    GeoUnit,
+    HealthEpidemiology,
+    Municipality,
 )
 
 LEGACY_MUNICIPALITY = "3543402"
@@ -99,6 +107,62 @@ def build_adapter(
     parsed_end = date.fromisoformat(end_date) if isinstance(end_date, str) else end_date
     window_end = parsed_end or today
     window_start = parsed_start or (window_end - timedelta(days=1))
+    if source == "ibge_pib":
+        first = start_year if start_year is not None else 2021
+        last = end_year if end_year is not None else 2023
+        return IbgePibAdapter(
+            raw_data_dir=raw_data_dir,
+            municipalities=set(codes),
+            years=list(range(first, last + 1)),
+        )
+    if source == "novo_caged":
+        year = start_year if start_year is not None else 2025
+        if end_year not in {None, year}:
+            raise ValueError("Novo CAGED processa uma competência por execução")
+        month = (periods or [12])[0]
+        if len(periods or [12]) != 1 or not 1 <= month <= 12:
+            raise ValueError("Novo CAGED exige exatamente um mês entre 1 e 12")
+        mappings = db.execute(
+            select(GeoCodeMapping.external_code, GeoUnit.code)
+            .join(GeoUnit, GeoUnit.id == GeoCodeMapping.geo_unit_id)
+            .where(
+                GeoCodeMapping.code_system == "CNES_MUNICIPALITY",
+                GeoCodeMapping.valid_to.is_(None),
+                GeoUnit.code.in_(codes),
+            )
+        ).all()
+        return NovoCagedAdapter(
+            raw_data_dir=raw_data_dir,
+            municipality_crosswalk={
+                external: canonical for external, canonical in mappings
+            },
+            year=year,
+            month=month,
+        )
+    if source == "senatran_fleet":
+        if start_year not in {None, 2026} or end_year not in {None, 2026}:
+            raise ValueError("Apenas a competência homologada 2026-09 está disponível")
+        official_names = db.execute(
+            select(GeoUnit.code, GeoUnit.state, GeoUnit.name).where(
+                GeoUnit.unit_type == "municipality",
+                GeoUnit.code.in_(codes),
+                GeoUnit.active.is_(True),
+            )
+        ).all()
+        name_map = {
+            (item.state, normalize_sector_name(item.name)): item.ibge_code
+            for item in municipalities
+        }
+        name_map.update(
+            {
+                (state, normalize_sector_name(name)): code
+                for code, state, name in official_names
+            }
+        )
+        return SenatranFleetAdapter(
+            raw_data_dir=raw_data_dir,
+            municipality_names=name_map,
+        )
     if source == "pncp":
         return PncpProcurementAdapter(
             raw_data_dir=raw_data_dir,

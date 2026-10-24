@@ -7,11 +7,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from lente_api.models import Dataset, IngestionJob
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ingestion.factory import build_adapter
+from lente_api.models import Dataset, IngestionJob
 
 
 def job_key(source: str, parameters: dict[str, Any]) -> str:
@@ -48,6 +48,9 @@ def schedule_job(
         "sia_production": "sia_production_municipal",
         "cnes_services": "cnes_services",
         "ans_beneficiaries": "ans_beneficiaries_municipal",
+        "ibge_pib": "ibge_pib_municipal",
+        "novo_caged": "novo_caged_movements",
+        "senatran_fleet": "senatran_fleet",
     }.get(source)
     if dataset_code is None:
         raise ValueError(f"Fonte desconhecida: {source}")

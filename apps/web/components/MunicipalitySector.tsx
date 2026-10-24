@@ -8,11 +8,13 @@ import { fetchJson, type MunicipalitySummary } from "@/lib/api";
 import { EducationDashboard } from "./EducationDashboard";
 import { HealthDashboard } from "./HealthDashboard";
 import { TransparencyDashboard } from "./TransparencyDashboard";
+import { SectorDashboard } from "./SectorDashboard";
 
 export function MunicipalitySector({ code, sector }: { code: string; sector: string }) {
   if (sector === "educacao") return <EducationDashboard code={code} />;
   if (sector === "saude") return <HealthDashboard code={code} />;
   if (sector === "financas-publicas" || sector === "transparencia") return <TransparencyDashboard municipalityCode={code} />;
+  if (["economia-e-trabalho", "trabalho", "protecao-social", "infraestrutura-e-cidades", "infraestrutura"].includes(sector)) return <SectorDashboard code={code} sector={sector} />;
   return <GenericMunicipalitySector code={code} sector={sector} />;
 }
 

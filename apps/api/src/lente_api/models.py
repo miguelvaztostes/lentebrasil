@@ -772,6 +772,147 @@ class HealthEpidemiology(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1)
 
 
+class EconomicActivity(Base):
+    __tablename__ = "economic_activities"
+    __table_args__ = (
+        UniqueConstraint("classification_system", "code", name="uq_economic_activity_code"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    classification_system: Mapped[str] = mapped_column(String(40), index=True)
+    code: Mapped[str] = mapped_column(String(40), index=True)
+    label: Mapped[str] = mapped_column(String(240))
+    level: Mapped[str] = mapped_column(String(40))
+
+
+class EconomyFact(Base):
+    __tablename__ = "economy_facts"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_economy_fact_revision"
+        ),
+        Index("ix_economy_fact_municipality_year", "municipality_ibge_code", "reference_year"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    reference_year: Mapped[int] = mapped_column(Integer, index=True)
+    metric_code: Mapped[str] = mapped_column(String(100), index=True)
+    activity_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("economic_activities.id"), index=True
+    )
+    value: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    unit: Mapped[str] = mapped_column(String(80))
+    price_basis: Mapped[str | None] = mapped_column(String(80))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class LaborFact(Base):
+    __tablename__ = "labor_facts"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", "revision", name="uq_labor_fact_revision"),
+        Index("ix_labor_fact_municipality_period", "municipality_ibge_code", "period_start"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    period_start: Mapped[date] = mapped_column(Date, index=True)
+    period_end: Mapped[date] = mapped_column(Date, index=True)
+    activity_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("economic_activities.id"), index=True)
+    admissions: Mapped[int] = mapped_column(Integer)
+    dismissals: Mapped[int] = mapped_column(Integer)
+    balance: Mapped[int] = mapped_column(Integer)
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SocialProgram(Base):
+    __tablename__ = "social_programs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(240))
+    provider: Mapped[str] = mapped_column(String(240))
+
+
+class SocialBenefitFact(Base):
+    __tablename__ = "social_benefit_facts"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_social_benefit_fact_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    period_start: Mapped[date] = mapped_column(Date, index=True)
+    period_end: Mapped[date] = mapped_column(Date, index=True)
+    program_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("social_programs.id"), index=True)
+    beneficiary_count: Mapped[int | None] = mapped_column(Integer)
+    family_count: Mapped[int | None] = mapped_column(Integer)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class InfrastructureService(Base):
+    __tablename__ = "infrastructure_services"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(240))
+    service_type: Mapped[str] = mapped_column(String(60), index=True)
+
+
+class InfrastructureFact(Base):
+    __tablename__ = "infrastructure_facts"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_infrastructure_fact_revision"
+        ),
+        Index(
+            "ix_infrastructure_fact_municipality_date", "municipality_ibge_code", "reference_date"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    reference_date: Mapped[date] = mapped_column(Date, index=True)
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("infrastructure_services.id"), index=True
+    )
+    metric_code: Mapped[str] = mapped_column(String(100), index=True)
+    value: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    unit: Mapped[str] = mapped_column(String(80))
+    availability_status: Mapped[str] = mapped_column(String(40), index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class SourceSnapshot(Base):
     __tablename__ = "source_snapshots"
 

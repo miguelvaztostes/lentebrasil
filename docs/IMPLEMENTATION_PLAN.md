@@ -126,6 +126,19 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 - CGU permanece bloqueado sem token autorizado. FNDE/PNAE continua educacional e não vira transferência paga. Portais municipais sem exportação permanecem manuais.
 - API e dashboard são consultivos; não produzem acusação ou escore de irregularidade.
 
+## Etapa 3D — economia, trabalho, social e infraestrutura
+
+- SIDRA 5938 publica PIB municipal 2023 e o último VAB setorial completo homologado (2021), sempre
+  como moeda nominal anual e sem interpolação mensal.
+- Novo CAGED dezembro/2025 é extraído do FTP oficial, processado em streaming e descartado após
+  agregar município/seção CNAE; saldo é reconciliado com admissões menos desligamentos.
+- SENATRAN setembro/2026 publica frota registrada por município e tipo; total e tipos são
+  reconciliados, sem interpretar registro como circulação local.
+- Tabelas de benefícios, saneamento e energia existem sem linhas simuladas. CGU/MDS, SINISA e
+  ANEEL permanecem no catálogo até autenticação, schema, granularidade e LGPD serem homologados.
+- API `/api/v1/sectors` possui paginação SQL, filtros municipal/UF/período/categoria e CSV; páginas
+  municipais mostram proveniência, método, período e indisponibilidade explícita.
+
 ```text
 docs → migração/catálogo → API → adaptador IBGE → UI → Siconfi/CNES
      → testes → observabilidade → backup/restore → empacotamento

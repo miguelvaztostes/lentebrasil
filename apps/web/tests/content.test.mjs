@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("public disclaimer and empty-data language remain visible", async () => {
-  const [footer, dashboard, indicator, search, home, education, school, transparency] = await Promise.all([
+  const [footer, dashboard, indicator, search, home, education, school, transparency, sectors] = await Promise.all([
     readFile(new URL("../components/Footer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/Dashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/IndicatorDetail.tsx", import.meta.url), "utf8"),
@@ -12,6 +12,7 @@ test("public disclaimer and empty-data language remain visible", async () => {
     readFile(new URL("../components/EducationDashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/SchoolDetail.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/TransparencyDashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/SectorDashboard.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(footer, /Observatório cívico independente/);
   assert.match(dashboard, /não há observações validadas/);
@@ -33,4 +34,8 @@ test("public disclaimer and empty-data language remain visible", async () => {
   assert.match(transparency, /exports\/procurements\.csv/);
   assert.match(transparency, /Visão geral da transparência/);
   assert.match(transparency, /Esses eventos não são compensados automaticamente/);
+  assert.match(sectors, /PIB municipal anual/);
+  assert.match(sectors, /não é estoque/);
+  assert.match(sectors, /Ausência de carga não significa zero/);
+  assert.match(sectors, /não mede circulação diária/);
 });
