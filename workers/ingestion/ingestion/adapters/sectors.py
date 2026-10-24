@@ -17,11 +17,6 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import py7zr
-from openpyxl import load_workbook
-from sqlalchemy import desc, select
-from sqlalchemy.orm import Session
-
-from ingestion.adapters.base import FetchedPayload, SourceAdapter, SourceValidationError
 from lente_api.models import (
     Dataset,
     EconomicActivity,
@@ -31,10 +26,17 @@ from lente_api.models import (
     LaborFact,
     SourceSnapshot,
 )
+from openpyxl import load_workbook
+from sqlalchemy import desc, select
+from sqlalchemy.orm import Session
+
+from ingestion.adapters.base import FetchedPayload, SourceAdapter, SourceValidationError
 
 
 def normalize_name(value: str) -> str:
-    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    ascii_value = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    )
     return re.sub(r"[^A-Z0-9]+", " ", ascii_value.upper()).strip()
 
 
@@ -91,7 +93,9 @@ class IbgePibAdapter(SourceAdapter):
         "543": ("product_taxes_net_subsidies", None, None),
     }
 
-    def __init__(self, *, raw_data_dir: Path, municipalities: set[str], years: list[int]):
+    def __init__(
+        self, *, raw_data_dir: Path, municipalities: set[str], years: list[int]
+    ):
         super().__init__(raw_data_dir=raw_data_dir)
         self.municipalities = municipalities
         self.years = sorted(set(years))
@@ -121,10 +125,18 @@ class IbgePibAdapter(SourceAdapter):
         try:
             rows = json.loads(payload.read_bytes())
         except json.JSONDecodeError as exc:
-            raise SourceValidationError("Resposta SIDRA PIB inválida", code="invalid_json") from exc
+            raise SourceValidationError(
+                "Resposta SIDRA PIB inválida", code="invalid_json"
+            ) from exc
         required = {"V", "D1C", "D2C", "D3C", "MN"}
-        if not isinstance(rows, list) or len(rows) < 2 or not required.issubset(rows[0]):
-            raise SourceValidationError("Schema SIDRA PIB alterado", code="schema_drift")
+        if (
+            not isinstance(rows, list)
+            or len(rows) < 2
+            or not required.issubset(rows[0])
+        ):
+            raise SourceValidationError(
+                "Schema SIDRA PIB alterado", code="schema_drift"
+            )
         records: list[EconomyRecord] = []
         for row in rows[1:]:
             municipality = str(row["D1C"])
@@ -135,12 +147,20 @@ class IbgePibAdapter(SourceAdapter):
                 or variable not in self.variables
                 or year not in self.years
             ):
-                raise SourceValidationError("Linha SIDRA fora do recorte", code="domain_mismatch")
+                raise SourceValidationError(
+                    "Linha SIDRA fora do recorte", code="domain_mismatch"
+                )
             raw = str(row.get("V", "")).strip()
             try:
-                value = None if raw in {"", "...", "-", "X"} else Decimal(raw) * Decimal(1000)
+                value = (
+                    None
+                    if raw in {"", "...", "-", "X"}
+                    else Decimal(raw) * Decimal(1000)
+                )
             except InvalidOperation as exc:
-                raise SourceValidationError("Valor PIB inválido", code="invalid_numeric") from exc
+                raise SourceValidationError(
+                    "Valor PIB inválido", code="invalid_numeric"
+                ) from exc
             metric, activity, label = self.variables[variable]
             records.append(
                 EconomyRecord(
@@ -160,7 +180,10 @@ class IbgePibAdapter(SourceAdapter):
     def validate(self, records: list[EconomyRecord]) -> None:
         if not records:
             raise SourceValidationError("PIB municipal vazio", code="empty_dataset")
-        keys = [(r.municipality_ibge_code, r.year, r.metric_code, r.activity_code) for r in records]
+        keys = [
+            (r.municipality_ibge_code, r.year, r.metric_code, r.activity_code)
+            for r in records
+        ]
         if len(keys) != len(set(keys)):
             raise SourceValidationError("PIB municipal duplicado", code="duplicate_key")
         for municipality in self.municipalities:
@@ -176,7 +199,9 @@ class IbgePibAdapter(SourceAdapter):
                     details={"municipality": municipality},
                 )
 
-    def upsert(self, db: Session, records: list[EconomyRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[EconomyRecord], snapshot: SourceSnapshot
+    ) -> None:
         activities: dict[str, EconomicActivity] = {}
         for record in records:
             if record.activity_code and record.activity_code not in activities:
@@ -301,7 +326,9 @@ class NovoCagedAdapter(SourceAdapter):
             ftp.cwd(self.remote_dir)
             size = ftp.size(self.filename)
         if not size or size > 500_000_000:
-            raise SourceValidationError("Tamanho CAGED fora do limite", code="resource_size")
+            raise SourceValidationError(
+                "Tamanho CAGED fora do limite", code="resource_size"
+            )
         return {
             "competence": self.competence,
             "filename": self.filename,
@@ -318,7 +345,9 @@ class NovoCagedAdapter(SourceAdapter):
                 ftp.set_pasv(True)
                 ftp.cwd(self.remote_dir)
                 with target.open("wb") as stream:
-                    ftp.retrbinary(f"RETR {self.filename}", stream.write, blocksize=1024 * 1024)
+                    ftp.retrbinary(
+                        f"RETR {self.filename}", stream.write, blocksize=1024 * 1024
+                    )
             return [
                 FetchedPayload(
                     content=None,
@@ -348,14 +377,18 @@ class NovoCagedAdapter(SourceAdapter):
                     or Path(members[0].filename).name != expected
                     or members[0].uncompressed > 2_000_000_000
                 ):
-                    raise SourceValidationError("Conteúdo 7z CAGED inesperado", code="schema_drift")
+                    raise SourceValidationError(
+                        "Conteúdo 7z CAGED inesperado", code="schema_drift"
+                    )
                 archive.extractall(path=extract_dir)
             text_path = extract_dir / expected
             totals: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0])
             with text_path.open("r", encoding="utf-8-sig", newline="") as stream:
                 reader = csv.DictReader(stream, delimiter=";")
                 required = {"competênciamov", "município", "seção", "saldomovimentação"}
-                if reader.fieldnames is None or not required.issubset(reader.fieldnames):
+                if reader.fieldnames is None or not required.issubset(
+                    reader.fieldnames
+                ):
                     raise SourceValidationError(
                         "Cabeçalho Novo CAGED alterado",
                         code="schema_drift",
@@ -406,9 +439,13 @@ class NovoCagedAdapter(SourceAdapter):
                 "Nenhuma movimentação CAGED no recorte", code="empty_dataset"
             )
         if any(r.balance != r.admissions - r.dismissals for r in records):
-            raise SourceValidationError("Saldo CAGED não conciliado", code="reconciliation_failed")
+            raise SourceValidationError(
+                "Saldo CAGED não conciliado", code="reconciliation_failed"
+            )
 
-    def upsert(self, db: Session, records: list[LaborRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[LaborRecord], snapshot: SourceSnapshot
+    ) -> None:
         for record in records:
             activity = db.scalar(
                 select(EconomicActivity).where(
@@ -429,7 +466,9 @@ class NovoCagedAdapter(SourceAdapter):
             key = f"{record.municipality_ibge_code}:{self.competence}:{record.section_code}"
             previous = db.scalar(
                 select(LaborFact)
-                .where(LaborFact.source_system == "novo_caged", LaborFact.source_key == key)
+                .where(
+                    LaborFact.source_system == "novo_caged", LaborFact.source_key == key
+                )
                 .order_by(desc(LaborFact.revision))
                 .limit(1)
             )
@@ -468,7 +507,9 @@ class SenatranFleetAdapter(SourceAdapter):
     dataset_code = "senatran_fleet"
     resource_url = "https://www.gov.br/transportes/pt-br/assuntos/transito/conteudo-Senatran/frota-de-veiculos-2026-2/Frota_por_municipio_e_tipo_Setembro_2026.xlsx/@@download/file"
 
-    def __init__(self, *, raw_data_dir: Path, municipality_names: dict[tuple[str, str], str]):
+    def __init__(
+        self, *, raw_data_dir: Path, municipality_names: dict[tuple[str, str], str]
+    ):
         super().__init__(raw_data_dir=raw_data_dir)
         self.municipality_names = municipality_names
 
@@ -482,7 +523,9 @@ class SenatranFleetAdapter(SourceAdapter):
     def fetch(self) -> list[FetchedPayload]:
         response = self.get(self.resource_url, timeout=90)
         if len(response.content) > 20_000_000:
-            raise SourceValidationError("Planilha SENATRAN excede limite", code="resource_size")
+            raise SourceValidationError(
+                "Planilha SENATRAN excede limite", code="resource_size"
+            )
         return [
             FetchedPayload(
                 content=response.content,
@@ -497,7 +540,9 @@ class SenatranFleetAdapter(SourceAdapter):
         ]
 
     def parse(self, payload: FetchedPayload) -> list[InfrastructureRecord]:
-        workbook = load_workbook(io.BytesIO(payload.read_bytes()), read_only=True, data_only=True)
+        workbook = load_workbook(
+            io.BytesIO(payload.read_bytes()), read_only=True, data_only=True
+        )
         sheet = workbook.active
         rows = sheet.iter_rows(values_only=True)
         next(rows, None)
@@ -551,7 +596,9 @@ class SenatranFleetAdapter(SourceAdapter):
         for record in records:
             if record.value is not None and record.value < 0:
                 raise SourceValidationError("Frota negativa", code="out_of_range")
-            grouped[record.municipality_ibge_code][record.service_code] = record.value or Decimal(0)
+            grouped[record.municipality_ibge_code][record.service_code] = (
+                record.value or Decimal(0)
+            )
         for municipality, values in grouped.items():
             if values.get("fleet_total") != sum(
                 value for code, value in values.items() if code != "fleet_total"
@@ -605,7 +652,9 @@ class SenatranFleetAdapter(SourceAdapter):
                     metric_code="registered_fleet",
                     value=record.value,
                     unit="veículos registrados",
-                    availability_status="available" if record.value is not None else "unavailable",
+                    availability_status="available"
+                    if record.value is not None
+                    else "unavailable",
                     source_document_url=record.source_url,
                     snapshot_id=snapshot.id,
                     revision=1 if previous is None else previous.revision + 1,

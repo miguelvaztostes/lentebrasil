@@ -5,14 +5,14 @@ from dataclasses import asdict
 from pathlib import Path
 
 import typer
+from lente_api.database import SessionLocal
+from lente_api.settings import get_settings
 
 from ingestion.adapters import ADAPTERS
 from ingestion.adapters.education import rollback_education_release
 from ingestion.factory import build_adapter, select_municipalities
 from ingestion.geography import sync_official_geographies
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
-from lente_api.database import SessionLocal
-from lente_api.settings import get_settings
 
 app = typer.Typer(
     help="Coletores oficiais multicípio do Lente Brasil", no_args_is_help=True

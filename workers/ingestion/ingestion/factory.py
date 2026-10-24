@@ -5,6 +5,13 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from lente_api.models import (
+    Agency,
+    GeoCodeMapping,
+    GeoUnit,
+    HealthEpidemiology,
+    Municipality,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -44,13 +51,6 @@ from ingestion.adapters.transparency import (
     TceSpExpenseAdapter,
     TceSpRevenueAdapter,
     normalize_name,
-)
-from lente_api.models import (
-    Agency,
-    GeoCodeMapping,
-    GeoUnit,
-    HealthEpidemiology,
-    Municipality,
 )
 
 LEGACY_MUNICIPALITY = "3543402"
