@@ -294,6 +294,63 @@ export type InventoryMatrixItem = { id: string; area: string; provider: string; 
 export type InventoryMatrix = { items: InventoryMatrixItem[]; count: number; limit: number; offset: number; summary: { inventory_records: number; areas: number; indicators: number; by_status: Record<string, number>; by_area: Record<string, number> } };
 export type AgricultureResponse = { items: Array<{ municipality_ibge_code: string; year: number; product: { code: string; name: string }; metric: string; value: string | null; unit: string; availability_status: string; source: SectorSource }>; count: number; methodology: string };
 
+export type ResearchDefinition = {
+  code: string;
+  label: string;
+  domain: string;
+  unit: string;
+  periodicity: string;
+  methodology: string;
+  limitations: string;
+  denominator: string | null;
+  geography: string;
+  comparable: boolean;
+  scope_required: boolean;
+  row_count: number;
+  published: boolean;
+};
+
+export type ResearchPoint = {
+  indicator_code: string;
+  geo_id: string;
+  geo_name: string;
+  state: string;
+  period_start: string;
+  period_end: string;
+  scope: Record<string, string | number | boolean | null>;
+  scope_key: string;
+  value: string | number | null;
+  availability_status: string;
+  unit: string;
+  periodicity: string;
+  dataset: string;
+  provider: string;
+  license: string | null;
+  source_url: string;
+  sha256: string;
+  retrieved_at: string;
+  published_at: string | null;
+  revision: number;
+};
+
+export type ResearchDictionary = {
+  items: ResearchDefinition[];
+  count: number;
+  domains: Record<string, { indicators: number; published: number; rows: number }>;
+};
+
+export type ResearchSeries = {
+  definition: ResearchDefinition;
+  items: ResearchPoint[];
+  count: number;
+  limit: number;
+  offset: number;
+  scopes: Array<{ scope_key: string; scope: ResearchPoint["scope"]; rows: number }>;
+  query: { indicator: string; geo_ids: string[]; start_year: number | null; end_year: number | null; scope_key: string | null };
+};
+
+export type MunicipalityPage = { items: Municipality[]; count: number; limit: number; offset: number };
+
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE}/v1${path}`, {
     headers: { Accept: "application/json" },

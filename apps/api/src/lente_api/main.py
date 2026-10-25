@@ -15,6 +15,7 @@ from lente_api.education_api import router as education_router
 from lente_api.exports_api import router as exports_router
 from lente_api.health_api import router as health_router
 from lente_api.horizontal_api import router as horizontal_router
+from lente_api.research_api import router as research_router
 from lente_api.sectors_api import router as sectors_router
 from lente_api.settings import get_settings
 from lente_api.transparency_api import router as transparency_router
@@ -90,6 +91,7 @@ app.include_router(education_router)
 app.include_router(exports_router)
 app.include_router(health_router)
 app.include_router(horizontal_router)
+app.include_router(research_router)
 app.include_router(sectors_router)
 app.include_router(transparency_router)
 app.include_router(router)

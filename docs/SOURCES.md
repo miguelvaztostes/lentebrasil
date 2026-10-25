@@ -1,5 +1,9 @@
 # Inventário de fontes oficiais
 
+## Exposição transversal — 25/10/2026
+
+A pesquisa avançada não cria uma nova fonte nem promove automaticamente itens do inventário. Ela expõe apenas registros ligados a `source_snapshots` e preserva provedor, licença, URL, SHA-256, publicação, coleta e revisão. Fontes candidatas sem conector/dados continuam somente no catálogo e recebem estado `source_identified_no_connector` na cobertura.
+
 > O inventário nacional candidato é um artefato distinto deste levantamento de fontes já
 > auditadas. Registros importados como `discovered` não integram esta lista de recursos
 > verificados e não autorizam coleta ou publicação.

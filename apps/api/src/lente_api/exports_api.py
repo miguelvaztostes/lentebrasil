@@ -49,6 +49,7 @@ DOMAIN_FILTERS = {
         "end_year",
     },
     "catalog": {"area", "review_status"},
+    "research": {"indicator", "geo_ids", "scope_key", "start_year", "end_year"},
 }
 
 
@@ -64,6 +65,8 @@ class ExportFilters(BaseModel):
     product: str | None = Field(None, max_length=40)
     area: str | None = Field(None, max_length=120)
     review_status: str | None = Field(None, max_length=40)
+    geo_ids: list[str] | None = Field(None, min_length=1, max_length=8)
+    scope_key: str | None = Field(None, pattern=r"^[a-f0-9]{32,64}$")
     start_year: int | None = Field(None, ge=1900, le=2100)
     end_year: int | None = Field(None, ge=1900, le=2100)
 
@@ -81,6 +84,13 @@ class ExportFilters(BaseModel):
             raise ValueError("uf deve ter duas letras")
         return value.upper() if value else None
 
+    @field_validator("geo_ids")
+    @classmethod
+    def validate_geo_ids(cls, value: list[str] | None) -> list[str] | None:
+        if value is not None and any(not re.fullmatch(r"\d{7}", item) for item in value):
+            raise ValueError("geo_ids deve conter códigos IBGE de sete dígitos")
+        return list(dict.fromkeys(value)) if value else value
+
     @field_validator("review_status")
     @classmethod
     def validate_review_status(cls, value: str | None) -> str | None:
@@ -92,7 +102,15 @@ class ExportFilters(BaseModel):
 class ExportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    domain: Literal["observations", "economy", "labor", "infrastructure", "agriculture", "catalog"]
+    domain: Literal[
+        "observations",
+        "economy",
+        "labor",
+        "infrastructure",
+        "agriculture",
+        "catalog",
+        "research",
+    ]
     format: Literal["csv", "parquet"] = "csv"
     filters: ExportFilters = Field(default_factory=ExportFilters)
     row_limit: int = Field(100_000, ge=10_001, le=250_000)
@@ -160,6 +178,10 @@ def create_export_job(payload: ExportRequest, request: Request, db: DbSession) -
             status_code=422,
             detail=f"Filtros incompatíveis com {payload.domain}: {', '.join(unsupported)}",
         )
+    if payload.domain == "research" and (
+        not filters.get("indicator") or not filters.get("geo_ids")
+    ):
+        raise HTTPException(status_code=422, detail="Pesquisa exige indicator e geo_ids")
     if (
         filters.get("start_year") is not None
         and filters.get("end_year") is not None

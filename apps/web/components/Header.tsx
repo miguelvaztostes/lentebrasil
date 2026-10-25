@@ -7,7 +7,9 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
 const links = [
   ["Brasil", "/brasil"],
-  ["Buscar", "/buscar"],
+  ["Pesquisa", "/pesquisa"],
+  ["Comparar", "/comparar"],
+  ["Catálogo", "/buscar"],
   ["Fontes", "/fontes"],
   ["Lente Ribeirão", "/municipios/3543402"],
   ["Dados abertos", "/dados-abertos"],

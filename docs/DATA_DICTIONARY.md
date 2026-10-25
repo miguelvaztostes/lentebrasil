@@ -81,6 +81,15 @@ Chave lógica: `(municipality_ibge_code, indicator_id, period_start, period_end,
 
 ## Operação e qualidade
 
+### `research_queries`
+
+- `slug`: identificador público curto derivado do hash canônico;
+- `parameters_hash`: SHA-256 dos parâmetros normalizados;
+- `parameters`: indicador, municípios, período e `scope_key`, sem dados pessoais;
+- `created_at`, `last_accessed_at`, `access_count`: metadados operacionais.
+
+O modelo transversal de pesquisa não duplica fatos. Ele consulta as tabelas temáticas, seleciona a revisão mais recente e devolve uma projeção comum com território, período, escopo, unidade e proveniência.
+
 ## Saúde municipal
 
 | Tabela | Grão e campos centrais | Semântica pública |

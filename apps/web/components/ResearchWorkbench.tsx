@@ -1,0 +1,215 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  API_BASE,
+  fetchJson,
+  formatValue,
+  type Municipality,
+  type ResearchDictionary,
+  type ResearchPoint,
+  type ResearchSeries,
+} from "@/lib/api";
+import { ErrorState, LoadingState } from "./LoadingState";
+
+const DEFAULT_GEOS = "3543402,3509502,3550308";
+const COLORS = ["#119e9c", "#e3af42", "#315c7d", "#a64b7a", "#587d45", "#d56b3f", "#6750a4", "#287d8e"];
+const domainNames: Record<string, string> = {
+  "agropecuaria-e-rural": "Agropecuária e rural",
+  desenvolvimento: "Desenvolvimento e população",
+  "economia-e-trabalho": "Economia e trabalho",
+  educacao: "Educação",
+  "infraestrutura-e-cidades": "Infraestrutura e cidades",
+  "protecao-social": "Proteção social",
+  saude: "Saúde",
+  transparencia: "Transparência e finanças",
+};
+
+function scopeLabel(scope: ResearchPoint["scope"]): string {
+  const labels = Object.entries(scope)
+    .filter(([, value]) => value !== null && value !== "")
+    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`);
+  return labels.join(" · ") || "Total / sem dimensão adicional";
+}
+
+function periodLabel(point: ResearchPoint): string {
+  if (point.period_start === point.period_end) return point.period_start;
+  return `${point.period_start} a ${point.period_end}`;
+}
+
+function ResearchChart({ points, unit }: { points: ResearchPoint[]; unit: string }) {
+  const municipalities = [...new Set(points.map((point) => point.geo_name))];
+  const chart = [...new Set(points.map((point) => point.period_start))]
+    .sort()
+    .map((period) => {
+      const row: Record<string, string | number | null> = { period };
+      for (const name of municipalities) {
+        const point = points.find((item) => item.period_start === period && item.geo_name === name);
+        row[name] = point?.value === null || point?.value === undefined ? null : Number(point.value);
+      }
+      return row;
+    });
+  return (
+    <div className="card h-[390px] p-4" aria-label={`Série de ${unit}`}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chart} margin={{ top: 15, right: 20, left: 15, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1023331c" />
+          <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} width={80} />
+          <Tooltip formatter={(value) => formatValue(value as number, unit)} />
+          <Legend />
+          {municipalities.map((name, index) => (
+            <Line key={name} type="monotone" dataKey={name} connectNulls={false} stroke={COLORS[index % COLORS.length]} strokeWidth={3} dot={{ r: 3 }} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function CoverageMap({ geoIds, names }: { geoIds: string[]; names: Record<string, string> }) {
+  const [features, setFeatures] = useState<Array<{ code: string; geometry: { type: string; coordinates: unknown } }>>([]);
+  useEffect(() => {
+    let active = true;
+    Promise.all(
+      geoIds.map(async (code) => {
+        try {
+          const feature = await fetchJson<{ geometry: { type: string; coordinates: unknown } }>(`/geo/boundaries/${code}`);
+          return { code, geometry: feature.geometry };
+        } catch {
+          return null;
+        }
+      }),
+    ).then((items) => active && setFeatures(items.filter((item): item is NonNullable<typeof item> => item !== null)));
+    return () => { active = false; };
+  }, [geoIds.join(",")]);
+
+  const polygons = useMemo(() => {
+    const all: Array<{ code: string; ring: number[][] }> = [];
+    for (const feature of features) {
+      const coords = feature.geometry.coordinates as number[][][][];
+      if (feature.geometry.type === "Polygon") all.push({ code: feature.code, ring: (coords as unknown as number[][][])[0] });
+      if (feature.geometry.type === "MultiPolygon") for (const polygon of coords) all.push({ code: feature.code, ring: polygon[0] });
+    }
+    return all;
+  }, [features]);
+  const flat = polygons.flatMap((item) => item.ring);
+  if (!flat.length) return <div className="card p-6 text-sm text-ink/60">Malha oficial ainda não publicada para os municípios selecionados. O mapa não é estimado.</div>;
+  const xs = flat.map(([x]) => x); const ys = flat.map(([, y]) => y);
+  const minX = Math.min(...xs); const maxX = Math.max(...xs); const minY = Math.min(...ys); const maxY = Math.max(...ys);
+  const width = Math.max(maxX - minX, 0.01); const height = Math.max(maxY - minY, 0.01); const pad = Math.max(width, height) * 0.08;
+  return (
+    <figure className="card p-5">
+      <svg viewBox={`${minX - pad} ${-(maxY + pad)} ${width + pad * 2} ${height + pad * 2}`} className="h-72 w-full" role="img" aria-label="Malhas municipais oficiais do IBGE">
+        {polygons.map((item, index) => <path key={`${item.code}-${index}`} d={`${item.ring.map(([x, y], point) => `${point ? "L" : "M"}${x},${-y}`).join(" ")} Z`} fill={`${COLORS[geoIds.indexOf(item.code) % COLORS.length]}55`} stroke={COLORS[geoIds.indexOf(item.code) % COLORS.length]} strokeWidth={width / 450} vectorEffect="non-scaling-stroke" />)}
+      </svg>
+      <figcaption className="mt-3 text-xs text-ink/60">Malhas oficiais publicadas, sem interpolação. {features.map((feature) => names[feature.code] ?? feature.code).join(" · ")}</figcaption>
+    </figure>
+  );
+}
+
+export function ResearchWorkbench({ compareMode = false }: { compareMode?: boolean }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [dictionary, setDictionary] = useState<ResearchDictionary | null>(null);
+  const [series, setSeries] = useState<ResearchSeries | null>(null);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [savedUrl, setSavedUrl] = useState("");
+  const [exportStatus, setExportStatus] = useState("");
+  const indicator = searchParams.get("indicador") ?? "health:production_quantity";
+  const geoIds = (searchParams.get("municipios") ?? DEFAULT_GEOS).split(",").filter(Boolean).slice(0, 8);
+  const startYear = searchParams.get("inicio") ?? "";
+  const endYear = searchParams.get("fim") ?? "";
+  const scopeKey = searchParams.get("escopo") ?? "";
+  const queryString = searchParams.toString();
+
+  useEffect(() => {
+    Promise.all([
+      fetchJson<ResearchDictionary>("/research/indicators"),
+      fetchJson<Municipality[]>("/municipalities"),
+    ]).then(([definitions, places]) => { setDictionary(definitions); setMunicipalities(places); }).catch((reason: Error) => setError(reason.message));
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController(); setLoading(true); setError("");
+    const params = new URLSearchParams({ indicator, geo_ids: geoIds.join(","), limit: "1000" });
+    if (startYear) params.set("start_year", startYear); if (endYear) params.set("end_year", endYear); if (scopeKey) params.set("scope_key", scopeKey);
+    fetchJson<ResearchSeries>(`/research/series?${params}`, controller.signal).then(setSeries).catch((reason: Error) => reason.name !== "AbortError" && setError(reason.message)).finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [indicator, geoIds.join(","), startYear, endYear, scopeKey]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = new FormData(event.currentTarget); const params = new URLSearchParams();
+    params.set("indicador", String(form.get("indicador")));
+    const selected = form.getAll("municipios").map(String).slice(0, 8); params.set("municipios", selected.join(","));
+    for (const [field, target] of [["inicio", "inicio"], ["fim", "fim"], ["escopo", "escopo"]] as const) { const value = String(form.get(field) ?? ""); if (value) params.set(target, value); }
+    router.push(`${compareMode ? "/comparar" : "/pesquisa"}?${params}`);
+  }
+
+  const exportParams = new URLSearchParams({ indicator, geo_ids: geoIds.join(",") });
+  if (startYear) exportParams.set("start_year", startYear); if (endYear) exportParams.set("end_year", endYear); if (scopeKey) exportParams.set("scope_key", scopeKey);
+  const names = Object.fromEntries(municipalities.map((item) => [item.ibge_code, `${item.name}/${item.state}`]));
+  const displayed = scopeKey ? series?.items ?? [] : (series?.scopes.length === 1 ? series.items : []);
+
+  async function saveQuery() {
+    const response = await fetch(`${API_BASE}/v1/research/queries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ indicator, geo_ids: geoIds, ...(startYear && { start_year: Number(startYear) }), ...(endYear && { end_year: Number(endYear) }), ...(scopeKey && { scope_key: scopeKey }) }) });
+    if (!response.ok) { setError("Não foi possível salvar a consulta."); return; }
+    const payload = await response.json() as { canonical_url: string }; setSavedUrl(`${window.location.origin}${payload.canonical_url}`);
+  }
+
+  async function createParquet() {
+    setExportStatus("Preparando exportação Parquet…");
+    const filters = { indicator, geo_ids: geoIds, ...(startYear && { start_year: Number(startYear) }), ...(endYear && { end_year: Number(endYear) }), ...(scopeKey && { scope_key: scopeKey }) };
+    const response = await fetch(`${API_BASE}/v1/export-jobs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: "research", format: "parquet", filters, row_limit: 250000 }) });
+    if (!response.ok) { setExportStatus("Não foi possível iniciar a exportação Parquet."); return; }
+    const job = await response.json() as { id: string };
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      const check = await fetch(`${API_BASE}/v1/export-jobs/${job.id}`);
+      if (!check.ok) break;
+      const current = await check.json() as { status: string; download_url: string | null; row_count: number | null };
+      if (current.status === "completed" && current.download_url) { setExportStatus(`Pronto: ${current.row_count?.toLocaleString("pt-BR") ?? ""} linhas`); window.location.assign(current.download_url); return; }
+      if (current.status === "failed") { setExportStatus("A exportação falhou; consulte o estado do job na API."); return; }
+    }
+    setExportStatus(`Exportação em processamento. Job ${job.id}.`);
+  }
+
+  return (
+    <div className="grid gap-8">
+      {dictionary && <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(dictionary.domains).map(([domain, totals]) => <div className="card p-4" key={domain}><p className="text-sm font-extrabold">{domainNames[domain] ?? domain}</p><p className="mt-1 text-2xl font-black">{totals.rows.toLocaleString("pt-BR")}</p><p className="text-xs text-ink/55">linhas · {totals.published}/{totals.indicators} indicadores publicados</p></div>)}</section>}
+      <form onSubmit={submit} className="card grid gap-5 p-6 lg:grid-cols-2">
+        <label className="text-sm font-bold">Indicador
+          <select name="indicador" value={indicator} onChange={(event) => router.push(`${compareMode ? "/comparar" : "/pesquisa"}?indicador=${encodeURIComponent(event.target.value)}&municipios=${geoIds.join(",")}`)} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-3 font-normal">
+            {dictionary && Object.entries(Object.groupBy(dictionary.items, (item) => item.domain)).map(([domain, items]) => <optgroup key={domain} label={domainNames[domain] ?? domain}>{items?.map((item) => <option key={item.code} value={item.code}>{item.label} ({item.row_count.toLocaleString("pt-BR")}){item.published ? "" : " — sem linhas"}</option>)}</optgroup>)}
+          </select>
+        </label>
+        <fieldset><legend className="text-sm font-bold">Municípios (até 8)</legend><select name="municipios" multiple key={`${geoIds.join(",")}-${municipalities.length}`} defaultValue={geoIds} size={5} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-2 text-sm">{municipalities.map((item) => <option key={item.ibge_code} value={item.ibge_code}>{item.name}/{item.state} · {item.ibge_code}</option>)}</select><p className="mt-1 text-xs text-ink/50">Use Ctrl/Cmd para selecionar vários.</p></fieldset>
+        <div className="grid grid-cols-2 gap-3"><label className="text-sm font-bold">Ano inicial<input name="inicio" type="number" min="1900" max="2100" defaultValue={startYear} className="mt-2 w-full rounded-xl border border-ink/20 px-4 py-3 font-normal" /></label><label className="text-sm font-bold">Ano final<input name="fim" type="number" min="1900" max="2100" defaultValue={endYear} className="mt-2 w-full rounded-xl border border-ink/20 px-4 py-3 font-normal" /></label></div>
+        <label className="text-sm font-bold">Escopo comparável<select name="escopo" key={`${indicator}-${scopeKey}-${series?.scopes.length ?? 0}`} defaultValue={scopeKey} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-3 font-normal"><option value="">Escolha quando houver dimensões</option>{series?.scopes.map((scope) => <option key={scope.scope_key} value={scope.scope_key}>{scopeLabel(scope.scope)} ({scope.rows})</option>)}</select></label>
+        <div className="flex flex-wrap items-end gap-3 lg:col-span-2"><button className="button-primary">Visualizar recorte</button><button type="button" onClick={saveQuery} className="button-secondary">Salvar link reproduzível</button><Link href="/buscar" className="button-secondary">Auditar catálogo</Link></div>
+        {savedUrl && <output className="rounded-xl bg-mist p-3 text-sm lg:col-span-2"><strong>Link:</strong> <a className="text-teal underline" href={savedUrl}>{savedUrl}</a></output>}
+      </form>
+      {error && <ErrorState message={error} />}{loading && <LoadingState label="Consultando fatos, escopos e proveniência…" />}
+      {!loading && series && <>
+        <section className="card p-6"><p className="eyebrow">{domainNames[series.definition.domain] ?? series.definition.domain}</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-3xl font-black">{series.definition.label}</h2><p className="mt-2 text-sm text-ink/60">{series.count.toLocaleString("pt-BR")} linhas no recorte · {series.definition.unit} · {series.definition.periodicity}</p></div><div className="flex flex-wrap gap-2"><a className="button-secondary" href={`${API_BASE}/v1/research/export.csv?${exportParams}`}>CSV</a><a className="button-secondary" href={`${API_BASE}/v1/research/export.json?${exportParams}`}>JSON</a><button type="button" onClick={createParquet} className="button-secondary">Parquet</button></div></div>{exportStatus && <p className="mt-3 text-xs font-bold text-teal">{exportStatus}</p>}<p className="mt-5 text-sm leading-6"><strong>Método:</strong> {series.definition.methodology}</p><p className="mt-2 text-sm leading-6 text-ink/65"><strong>Limites:</strong> {series.definition.limitations}</p></section>
+        {series.definition.scope_required && !scopeKey && series.scopes.length > 1 ? <section className="rounded-2xl border border-gold/60 bg-gold/10 p-6"><h2 className="font-extrabold">Escolha um escopo antes de comparar ou desenhar a série</h2><p className="mt-2 text-sm">Existem {series.scopes.length} categorias diferentes. Somá-las ou colocá-las na mesma linha poderia duplicar ou distorcer o indicador.</p></section> : displayed.length ? <ResearchChart points={displayed} unit={series.definition.unit} /> : <section className="card p-6">Nenhuma linha publicada neste recorte. Indisponível não é zero.</section>}
+        <CoverageMap geoIds={geoIds} names={names} />
+        <section className="overflow-hidden rounded-2xl border border-ink/10 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-ink text-white"><tr><th className="p-3">Território</th><th className="p-3">Período</th><th className="p-3">Escopo</th><th className="p-3">Valor</th><th className="p-3">Fonte</th><th className="p-3">Estado</th></tr></thead><tbody>{series.items.map((point, index) => <tr key={`${point.geo_id}-${point.period_start}-${point.scope_key}-${index}`} className="border-t border-ink/10 align-top"><td className="p-3 font-bold">{point.geo_name}/{point.state}</td><td className="whitespace-nowrap p-3">{periodLabel(point)}</td><td className="max-w-sm p-3 text-xs">{scopeLabel(point.scope)}</td><td className="whitespace-nowrap p-3 font-bold">{formatValue(point.value, point.unit)}</td><td className="p-3"><a href={point.source_url} target="_blank" rel="noreferrer" className="font-bold text-teal hover:underline">{point.provider}</a><span className="block text-xs text-ink/50">{point.dataset} · rev. {point.revision}</span></td><td className="p-3">{point.availability_status === "available" ? "Publicado" : point.availability_status}</td></tr>)}</tbody></table></div>{series.count > series.items.length && <p className="border-t border-ink/10 p-4 text-xs text-ink/60">Mostrando {series.items.length} de {series.count.toLocaleString("pt-BR")} linhas. Use CSV/JSON para até 10 mil linhas; exportações maiores usam o serviço assíncrono.</p>}</section>
+      </>}
+    </div>
+  );
+}

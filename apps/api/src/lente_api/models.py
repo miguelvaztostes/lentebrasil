@@ -1121,6 +1121,18 @@ class ExportJob(Base):
     error_details: Mapped[str | None] = mapped_column(Text)
 
 
+class ResearchQuery(Base):
+    __tablename__ = "research_queries"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    slug: Mapped[str] = mapped_column(String(24), unique=True, index=True)
+    parameters_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    parameters: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_accessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    access_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class DataQualityIssue(Base):
     __tablename__ = "data_quality_issues"
 

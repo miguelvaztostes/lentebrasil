@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("public disclaimer and empty-data language remain visible", async () => {
-  const [footer, dashboard, indicator, search, home, education, school, transparency, sectors, agriculture, openData, municipalitySector] = await Promise.all([
+  const [footer, dashboard, indicator, search, home, education, school, transparency, sectors, agriculture, openData, municipalitySector, research] = await Promise.all([
     readFile(new URL("../components/Footer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/Dashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/IndicatorDetail.tsx", import.meta.url), "utf8"),
@@ -16,6 +16,7 @@ test("public disclaimer and empty-data language remain visible", async () => {
     readFile(new URL("../components/AgricultureDashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/dados-abertos/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/MunicipalitySector.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/ResearchWorkbench.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(footer, /Observatório cívico independente/);
   assert.match(dashboard, /não há observações validadas/);
@@ -46,4 +47,9 @@ test("public disclaimer and empty-data language remain visible", async () => {
   assert.match(openData, /Consultas maiores usam/);
   assert.match(openData, /Matriz 165 fontes/);
   assert.match(municipalitySector, /Matriz de fontes do setor/);
+  assert.match(research, /Indisponível não é zero/);
+  assert.match(research, /scope_required/);
+  assert.match(research, /export\.csv/);
+  assert.match(research, /Parquet/);
+  assert.match(research, /geo\/boundaries/);
 });

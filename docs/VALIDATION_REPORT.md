@@ -1,5 +1,16 @@
 # Relatório de entrega e validação
 
+## Pesquisa pública transversal — 25/10/2026
+
+- O dicionário foi confrontado com contagens das tabelas operacionais e diferencia definição de indicador de linha publicada.
+- Consultas de fumaça foram executadas para todas as 26 definições com linhas no snapshot local, cobrindo população, saúde, finanças, economia, trabalho, infraestrutura e agro.
+- Ribeirão Preto, Campinas e São Paulo são o recorte do contrato automatizado para comparação válida, período incompatível, cobertura, CSV com proveniência e URL salva determinística.
+- O build de produção inclui `/pesquisa` e `/comparar` e não desenha série multiescopo sem escolha explícita.
+- A exportação grande pagina em blocos de mil linhas antes da conversão Parquet; há limite de 250 mil linhas, quota por solicitante e expiração do artefato.
+- Educação e proteção social aparecem no dicionário, mas permanecem `published=false` quando o banco não contém fatos homologados. Isso não é apresentado como valor zero.
+
+Esses resultados descrevem o snapshot validado, não cobertura nacional garantida de cada fonte. A cobertura territorial deve ser consultada por indicador em `/api/v1/coverage`.
+
 Data da validação: 09/10/2026  
 Município: Ribeirão Preto/SP (`3543402`)  
 Escopo: MVP funcional, com fontes reais e sem dados simulados

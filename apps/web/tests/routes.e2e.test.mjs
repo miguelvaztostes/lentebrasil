@@ -8,6 +8,8 @@ test("territorial routes render and shared search URL is accepted", { skip: !bas
     "/",
     "/brasil",
     "/buscar?q=Ribeirao&uf=SP&status=discovered",
+    "/pesquisa?indicador=observation%3Apopulation_estimated&municipios=3543402%2C3509502%2C3550308",
+    "/comparar?indicador=observation%3Apopulation_estimated&municipios=3543402%2C3509502%2C3550308",
     "/municipios/3543402",
     "/municipios/3509502",
     "/municipios/3550308",

@@ -97,6 +97,15 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 
 ## Ordem de execução
 
+## Etapa 4 — pesquisa pública transversal concluída em 25/10/2026
+
+- dicionário efetivo sobre todas as tabelas temáticas;
+- séries e comparação com validação de indicador, escopo, unidade e período;
+- cobertura explicável, URL reproduzível e consultas anônimas;
+- CSV/JSON síncrono e Parquet assíncrono com quota;
+- gráfico, tabela e mapa baseado somente em malhas oficiais publicadas;
+- itens catalogados sem fatos permanecem identificados como não publicados.
+
 ## Etapa 3C — saúde municipal
 
 - Modelo versionado para estabelecimentos, leitos, serviços, produção e epidemiologia, sempre

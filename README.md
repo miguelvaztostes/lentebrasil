@@ -135,6 +135,17 @@ plano técnico original estão preservados em `docs/catalog/input` e `docs/refer
 
 ## API e exportação
 
+Pesquisa transversal de todos os fatos publicados:
+
+- `GET /api/v1/research/indicators`
+- `GET /api/v1/research/series?indicator=...&geo_ids=3543402,3509502`
+- `GET /api/v1/compare?indicator=...&geo_ids=3543402,3509502`
+- `GET /api/v1/coverage?indicator=...&geo_ids=3543402,3509502`
+- `GET /api/v1/research/export.csv` e `GET /api/v1/research/export.json`
+- `POST /api/v1/research/queries`
+
+As telas públicas correspondentes são `/pesquisa` e `/comparar`. Consulte [docs/RESEARCH.md](docs/RESEARCH.md) para regras de escopo, ausência e exportação.
+
 Principais rotas:
 
 - `GET /api/v1/municipalities`

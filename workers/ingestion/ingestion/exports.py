@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import uuid
 from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
@@ -25,6 +26,7 @@ from lente_api.models import (
     Source,
     SourceSnapshot,
 )
+from lente_api.research import research_points
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -162,6 +164,8 @@ def export_rows(
 ) -> tuple[list[str], Iterator[dict[str, Any]]]:
     if not 1 <= row_limit <= MAX_EXPORT_ROWS:
         raise ValueError("Limite de exportação inválido")
+    if domain == "research":
+        return _research_query(db, filters, row_limit)
     builders = {
         "observations": _observation_query,
         "economy": _economy_query,
@@ -182,6 +186,73 @@ def export_rows(
             if index >= row_limit:
                 raise ValueError(f"Resultado excede quota de {row_limit} linhas")
             yield serializer(row)
+
+    return headers, iterate()
+
+
+def _research_query(
+    db: Session, filters: dict[str, Any], row_limit: int
+) -> tuple[list[str], Iterator[dict[str, Any]]]:
+    indicator = str(filters.get("indicator") or "")
+    geo_ids = list(filters.get("geo_ids") or [])
+    if not indicator or not geo_ids:
+        raise ValueError("Pesquisa exige indicator e geo_ids")
+    headers = [
+        "indicator_code",
+        "geo_id",
+        "geo_name",
+        "state",
+        "period_start",
+        "period_end",
+        "scope_key",
+        "scope",
+        "value",
+        "availability_status",
+        "unit",
+        "dataset",
+        "provider",
+        "license",
+        "source_url",
+        "sha256",
+        "retrieved_at",
+        "published_at",
+        "revision",
+    ]
+
+    def iterate() -> Iterator[dict[str, Any]]:
+        offset = 0
+        exported = 0
+        while exported < row_limit:
+            page = research_points(
+                db,
+                indicator=indicator,
+                geo_ids=geo_ids,
+                start_year=filters.get("start_year"),
+                end_year=filters.get("end_year"),
+                scope_key=filters.get("scope_key"),
+                limit=min(1000, row_limit - exported),
+                offset=offset,
+            )
+            items = page["items"]
+            if not items:
+                return
+            for item in items:
+                yield {**item, "scope": json.dumps(item["scope"], ensure_ascii=False)}
+                exported += 1
+            offset += len(items)
+            if offset >= page["count"]:
+                return
+        if research_points(
+            db,
+            indicator=indicator,
+            geo_ids=geo_ids,
+            start_year=filters.get("start_year"),
+            end_year=filters.get("end_year"),
+            scope_key=filters.get("scope_key"),
+            limit=1,
+            offset=row_limit,
+        )["items"]:
+            raise ValueError(f"Resultado excede quota de {row_limit} linhas")
 
     return headers, iterate()
 
