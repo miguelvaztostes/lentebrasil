@@ -65,7 +65,14 @@ Preto materializou 18 métricas Saeb e 12 métricas PNAE; a repetição do mesmo
 contagens. Para o PNAE, os seis valores previstos municipais somam R$ 7.680.903,13, sem inferir
 pagamento ou execução.
 
-O download direto do PNAE respondeu no container. O endpoint do Inep continuou indisponível ali
-por erro de cadeia de certificado (`CERTIFICATE_VERIFY_FAILED`), inclusive para Saeb. A validação
-TLS permaneceu habilitada; nenhuma opção insegura foi adicionada. O RAR oficial foi baixado no
-host, verificado por SHA-256 e processado integralmente pelo mesmo parser dentro do container.
+O download direto do PNAE respondeu no container. Em 26/10/2026, o erro de cadeia do Inep foi
+localizado: o servidor omitia a intermediária `RNP ICPEdu GR46 OV TLS CA 2025`. O conector passou
+a carregar essa intermediária versionada e fixada por SHA-256
+`c5bdf436a7984e244eeacc7d500469d651d13df28d0267e84264f2d94e59443e`, preservando a
+validação TLS do sistema; `verify=False` não é usado. Ideb, Saeb e Censo responderam no container
+com 25.308.289, 8.413.247 e 33.829.396 bytes, respectivamente.
+
+Uma carga controlada na demo publicou 9.228 registros escolares/etapa, 45 métricas Ideb, 60
+métricas Saeb e 24 métricas PNAE para Ribeirão Preto, Campinas e São Paulo, sem rejeições. A rota
+`/educacao` e a pesquisa transversal exibem esses fatos, traduzem rede/etapa e permitem comparar
+municípios sem combinar escopos diferentes.

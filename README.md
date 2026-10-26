@@ -28,7 +28,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   gastos SIOPS, mortalidade SIM e nascidos vivos SINASC, mantendo microdados fora da base
   publicada e distinguindo cadastro, capacidade, produção, gasto e eventos vitais.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
-  preservando supressões e distinguindo previsão de transferência de execução financeira.
+  preservando supressões e distinguindo previsão de transferência de execução financeira; a
+  página `/educacao` oferece seleção municipal e atalhos de comparação por escopo compatível.
 - Economia e trabalho com PIB/VAB municipal SIDRA e fluxo mensal do Novo CAGED por seção CNAE;
   infraestrutura com frota registrada SENATRAN, sem atribuir índices nacionais a municípios.
 - Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
@@ -146,7 +147,9 @@ Pesquisa transversal de todos os fatos publicados:
 - `GET /api/v1/research/export.csv` e `GET /api/v1/research/export.json`
 - `POST /api/v1/research/queries`
 
-As telas públicas correspondentes são `/pesquisa` e `/comparar`. Consulte [docs/RESEARCH.md](docs/RESEARCH.md) para regras de escopo, ausência e exportação.
+As telas públicas correspondentes são `/pesquisa` e `/comparar`. A seleção de municípios usa
+busca e etiquetas removíveis, sem exigir Ctrl/Cmd. Consulte [docs/RESEARCH.md](docs/RESEARCH.md)
+para regras de escopo, ausência e exportação.
 
 Principais rotas:
 

@@ -457,3 +457,31 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   o backoffice retorna indisponível sem introspecção e uploads permanecem `pending`/quarentena
   sem scanner. Contrato de token, MFA e protocolo INSTREAM foram testados sem afirmar integração
   operacional com provedor externo.
+
+## Correção de publicação e visibilidade dos painéis — 26/10/2026
+
+- A página `/educacao`, que ainda mostrava o aviso antigo “IDEB em validação”, foi ligada ao
+  painel municipal real. A carga da demo possui 83.052 fatos de matrícula e 129 métricas de Ideb,
+  Saeb e PNAE para Ribeirão Preto, Campinas e São Paulo.
+- A pesquisa passou a consultar `education:enrollment_count` pelo seletor agregado correto. Uma
+  colisão com o prefixo dinâmico `education:*` fazia o dicionário anunciar 83.052 linhas, mas a
+  série retornar vazia; após a correção, o recorte dos três municípios retorna 99 combinações
+  comparáveis de etapa/dependência.
+- Rede, etapa, dependência e conjunto recebem rótulos públicos; rendimento é convertido de
+  proporção para percentual somente na apresentação/consulta. Ideb, Saeb e PNAE mantêm unidades
+  e escopos separados.
+- O diretório IBGE foi sincronizado novamente: 27 UFs e 5.571 municípios, checksum
+  `59479942c30ce3aa283f981b1537ed2bee1f08fa22513aafeba7115b8f3cee5a`; Campinas voltou ao
+  nome oficial depois de uma alteração residual de fixture local.
+- A auditoria executou todos os 33 indicadores publicados no dicionário contra os três municípios.
+  Nenhum endpoint falhou ou apresentou falso vazio; contagens nacionais de cadastro CNES diferem
+  do recorte demonstrativo por definição e não foram tratadas como erro.
+- A auditoria confirmou que as 6.013 linhas de 2025 em `fiscal_statements` pertencem ao SIOPS e
+  continuam corretamente no painel de Saúde; não foram reaproveitadas como execução fiscal geral.
+  PNCP e os agregados TCE-SP permanecem indisponíveis na demo atual, sem conversão para zero.
+- A página de Desenvolvimento passou a apresentar PIB/VAB, Novo CAGED, frota Senatran e PAM,
+  além de população e acesso à comparação. Proteção social e PNCP continuam indisponíveis porque
+  suas tabelas estão realmente vazias; nenhuma ausência foi transformada em zero.
+- PostgreSQL 16 descartável: migrações `0001 → 0019` e 71 testes aprovados. O frontend passou em
+  teste de conteúdo, E2E das rotas (incluindo Educação, Desenvolvimento e Transparência),
+  TypeScript, build de produção e auditoria sem vulnerabilidades de dependências de produção.

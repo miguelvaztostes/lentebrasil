@@ -37,10 +37,52 @@ const domainNames: Record<string, string> = {
   transparencia: "Transparência e finanças",
 };
 
+const scopeFieldNames: Record<string, string> = {
+  account_label: "Conta",
+  active: "Cadastro ativo",
+  activity_label: "Atividade",
+  annex: "Anexo",
+  age_band: "Faixa etária",
+  bed_type_label: "Tipo de leito",
+  care_type: "Tipo de atenção",
+  category_label: "Categoria",
+  classification_label: "Classificação",
+  column: "Coluna contábil",
+  dataset_label: "Conjunto",
+  dependency_label: "Dependência",
+  facility_type_label: "Tipo de estabelecimento",
+  geography_basis: "Base territorial",
+  modality: "Modalidade",
+  network_label: "Rede",
+  price_basis: "Base de preços",
+  procedure_label: "Procedimento",
+  product_label: "Produto",
+  program_label: "Programa",
+  power: "Poder",
+  reference_period: "Período de referência",
+  section_label: "Setor econômico",
+  service_label: "Serviço",
+  service_type: "Tipo de serviço",
+  source_system: "Sistema de origem",
+  stage_label: "Etapa",
+  statement_type: "Demonstrativo",
+  status: "Situação",
+  sus_linked: "Vinculado ao SUS",
+  sus_sector: "Vínculo SUS",
+  transfer_type: "Tipo de transferência",
+};
+
+const availabilityNames: Record<string, string> = {
+  available: "Publicado",
+  unavailable: "Indisponível",
+  suppressed: "Suprimido pela fonte",
+  not_applicable: "Não se aplica",
+};
+
 function scopeLabel(scope: ResearchPoint["scope"]): string {
   const labels = Object.entries(scope)
-    .filter(([, value]) => value !== null && value !== "")
-    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`);
+    .filter(([key, value]) => value !== null && value !== "" && (key.endsWith("_label") || !(`${key}_label` in scope)))
+    .map(([key, value]) => `${scopeFieldNames[key] ?? key.replaceAll("_", " ")}: ${typeof value === "boolean" ? (value ? "Sim" : "Não") : String(value)}`);
   return labels.join(" · ") || "Total / sem dimensão adicional";
 }
 
@@ -130,6 +172,7 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
   const [loading, setLoading] = useState(true);
   const [savedUrl, setSavedUrl] = useState("");
   const [exportStatus, setExportStatus] = useState("");
+  const [municipalitySearch, setMunicipalitySearch] = useState("");
   const indicator = searchParams.get("indicador") ?? "health:production_quantity";
   const geoIds = (searchParams.get("municipios") ?? DEFAULT_GEOS).split(",").filter(Boolean).slice(0, 8);
   const startYear = searchParams.get("inicio") ?? "";
@@ -164,6 +207,16 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
   if (startYear) exportParams.set("start_year", startYear); if (endYear) exportParams.set("end_year", endYear); if (scopeKey) exportParams.set("scope_key", scopeKey);
   const names = Object.fromEntries(municipalities.map((item) => [item.ibge_code, `${item.name}/${item.state}`]));
   const displayed = scopeKey ? series?.items ?? [] : (series?.scopes.length === 1 ? series.items : []);
+  const municipalityMatches = municipalities.filter((item) => {
+    const needle = municipalitySearch.trim().toLocaleLowerCase("pt-BR");
+    return needle && !geoIds.includes(item.ibge_code) && `${item.name} ${item.state} ${item.ibge_code}`.toLocaleLowerCase("pt-BR").includes(needle);
+  }).slice(0, 20);
+
+  function updateMunicipalities(next: string[]) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("municipios", next.slice(0, 8).join(","));
+    router.push(`${compareMode ? "/comparar" : "/pesquisa"}?${params}`);
+  }
 
   async function saveQuery() {
     const response = await fetch(`${API_BASE}/v1/research/queries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ indicator, geo_ids: geoIds, ...(startYear && { start_year: Number(startYear) }), ...(endYear && { end_year: Number(endYear) }), ...(scopeKey && { scope_key: scopeKey }) }) });
@@ -197,7 +250,15 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
             {dictionary && Object.entries(Object.groupBy(dictionary.items, (item) => item.domain)).map(([domain, items]) => <optgroup key={domain} label={domainNames[domain] ?? domain}>{items?.map((item) => <option key={item.code} value={item.code}>{item.label} ({item.row_count.toLocaleString("pt-BR")}){item.published ? "" : " — sem linhas"}</option>)}</optgroup>)}
           </select>
         </label>
-        <fieldset><legend className="text-sm font-bold">Municípios (até 8)</legend><select name="municipios" multiple key={`${geoIds.join(",")}-${municipalities.length}`} defaultValue={geoIds} size={5} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-2 text-sm">{municipalities.map((item) => <option key={item.ibge_code} value={item.ibge_code}>{item.name}/{item.state} · {item.ibge_code}</option>)}</select><p className="mt-1 text-xs text-ink/50">Use Ctrl/Cmd para selecionar vários.</p></fieldset>
+        <fieldset>
+          <legend className="text-sm font-bold">Municípios para comparar (até 8)</legend>
+          {geoIds.map((code) => <input key={code} type="hidden" name="municipios" value={code} />)}
+          <div className="mt-2 flex min-h-12 flex-wrap gap-2 rounded-xl border border-ink/20 bg-white p-2">
+            {geoIds.map((code) => <span key={code} className="inline-flex items-center gap-2 rounded-lg bg-mist px-3 py-2 text-sm font-bold">{names[code] ?? code}<button type="button" disabled={geoIds.length === 1} aria-label={`Remover ${names[code] ?? code}`} onClick={() => updateMunicipalities(geoIds.filter((item) => item !== code))} className="text-ink/45 hover:text-ink disabled:cursor-not-allowed disabled:opacity-30">×</button></span>)}
+          </div>
+          <input value={municipalitySearch} onChange={(event) => setMunicipalitySearch(event.target.value)} className="mt-2 w-full rounded-xl border border-ink/20 px-4 py-3 font-normal" placeholder="Digite nome, UF ou código IBGE" />
+          {municipalityMatches.length > 0 && <select aria-label="Adicionar município" value="" onChange={(event) => { if (event.target.value) updateMunicipalities([...geoIds, event.target.value]); setMunicipalitySearch(""); }} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-3 text-sm"><option value="">Selecione para adicionar</option>{municipalityMatches.map((item) => <option key={item.ibge_code} value={item.ibge_code}>{item.name}/{item.state} · {item.ibge_code}</option>)}</select>}
+        </fieldset>
         <div className="grid grid-cols-2 gap-3"><label className="text-sm font-bold">Ano inicial<input name="inicio" type="number" min="1900" max="2100" defaultValue={startYear} className="mt-2 w-full rounded-xl border border-ink/20 px-4 py-3 font-normal" /></label><label className="text-sm font-bold">Ano final<input name="fim" type="number" min="1900" max="2100" defaultValue={endYear} className="mt-2 w-full rounded-xl border border-ink/20 px-4 py-3 font-normal" /></label></div>
         <label className="text-sm font-bold">Escopo comparável<select name="escopo" key={`${indicator}-${scopeKey}-${series?.scopes.length ?? 0}`} defaultValue={scopeKey} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-3 font-normal"><option value="">Escolha quando houver dimensões</option>{series?.scopes.map((scope) => <option key={scope.scope_key} value={scope.scope_key}>{scopeLabel(scope.scope)} ({scope.rows})</option>)}</select></label>
         <div className="flex flex-wrap items-end gap-3 lg:col-span-2"><button className="button-primary">Visualizar recorte</button><button type="button" onClick={saveQuery} className="button-secondary">Salvar link reproduzível</button><Link href="/buscar" className="button-secondary">Auditar catálogo</Link></div>
@@ -208,7 +269,7 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
         <section className="card p-6"><p className="eyebrow">{domainNames[series.definition.domain] ?? series.definition.domain}</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-3xl font-black">{series.definition.label}</h2><p className="mt-2 text-sm text-ink/60">{series.count.toLocaleString("pt-BR")} linhas no recorte · {series.definition.unit} · {series.definition.periodicity}</p></div><div className="flex flex-wrap gap-2"><a className="button-secondary" href={`${API_BASE}/v1/research/export.csv?${exportParams}`}>CSV</a><a className="button-secondary" href={`${API_BASE}/v1/research/export.json?${exportParams}`}>JSON</a><button type="button" onClick={createParquet} className="button-secondary">Parquet</button></div></div>{exportStatus && <p className="mt-3 text-xs font-bold text-teal">{exportStatus}</p>}<p className="mt-5 text-sm leading-6"><strong>Método:</strong> {series.definition.methodology}</p><p className="mt-2 text-sm leading-6 text-ink/65"><strong>Limites:</strong> {series.definition.limitations}</p></section>
         {series.definition.scope_required && !scopeKey && series.scopes.length > 1 ? <section className="rounded-2xl border border-gold/60 bg-gold/10 p-6"><h2 className="font-extrabold">Escolha um escopo antes de comparar ou desenhar a série</h2><p className="mt-2 text-sm">Existem {series.scopes.length} categorias diferentes. Somá-las ou colocá-las na mesma linha poderia duplicar ou distorcer o indicador.</p></section> : displayed.length ? <ResearchChart points={displayed} unit={series.definition.unit} /> : <section className="card p-6">Nenhuma linha publicada neste recorte. Indisponível não é zero.</section>}
         <CoverageMap geoIds={geoIds} names={names} />
-        <section className="overflow-hidden rounded-2xl border border-ink/10 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-ink text-white"><tr><th className="p-3">Território</th><th className="p-3">Período</th><th className="p-3">Escopo</th><th className="p-3">Valor</th><th className="p-3">Fonte</th><th className="p-3">Estado</th></tr></thead><tbody>{series.items.map((point, index) => <tr key={`${point.geo_id}-${point.period_start}-${point.scope_key}-${index}`} className="border-t border-ink/10 align-top"><td className="p-3 font-bold">{point.geo_name}/{point.state}</td><td className="whitespace-nowrap p-3">{periodLabel(point)}</td><td className="max-w-sm p-3 text-xs">{scopeLabel(point.scope)}</td><td className="whitespace-nowrap p-3 font-bold">{formatValue(point.value, point.unit)}</td><td className="p-3"><a href={point.source_url} target="_blank" rel="noreferrer" className="font-bold text-teal hover:underline">{point.provider}</a><span className="block text-xs text-ink/50">{point.dataset} · rev. {point.revision}</span></td><td className="p-3">{point.availability_status === "available" ? "Publicado" : point.availability_status}</td></tr>)}</tbody></table></div>{series.count > series.items.length && <p className="border-t border-ink/10 p-4 text-xs text-ink/60">Mostrando {series.items.length} de {series.count.toLocaleString("pt-BR")} linhas. Use CSV/JSON para até 10 mil linhas; exportações maiores usam o serviço assíncrono.</p>}</section>
+        <section className="overflow-hidden rounded-2xl border border-ink/10 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-ink text-white"><tr><th className="p-3">Território</th><th className="p-3">Período</th><th className="p-3">Escopo</th><th className="p-3">Valor</th><th className="p-3">Fonte</th><th className="p-3">Estado</th></tr></thead><tbody>{series.items.map((point, index) => <tr key={`${point.geo_id}-${point.period_start}-${point.scope_key}-${index}`} className="border-t border-ink/10 align-top"><td className="p-3 font-bold">{point.geo_name}/{point.state}</td><td className="whitespace-nowrap p-3">{periodLabel(point)}</td><td className="max-w-sm p-3 text-xs">{scopeLabel(point.scope)}</td><td className="whitespace-nowrap p-3 font-bold">{formatValue(point.value, point.unit)}</td><td className="p-3"><a href={point.source_url} target="_blank" rel="noreferrer" className="font-bold text-teal hover:underline">{point.provider}</a><span className="block text-xs text-ink/50">{point.dataset} · rev. {point.revision}</span></td><td className="p-3">{availabilityNames[point.availability_status] ?? point.availability_status.replaceAll("_", " ")}</td></tr>)}</tbody></table></div>{series.count > series.items.length && <p className="border-t border-ink/10 p-4 text-xs text-ink/60">Mostrando {series.items.length} de {series.count.toLocaleString("pt-BR")} linhas. Use CSV/JSON para até 10 mil linhas; exportações maiores usam o serviço assíncrono.</p>}</section>
       </>}
     </div>
   );

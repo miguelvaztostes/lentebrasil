@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import os
 import uuid
@@ -32,6 +33,22 @@ from lente_api.models import (
     SchoolVersion,
     SourceSnapshot,
 )
+
+
+def test_inep_intermediate_certificate_is_pinned_and_loadable() -> None:
+    certificate = (
+        Path(__file__).parents[3]
+        / "workers"
+        / "ingestion"
+        / "ingestion"
+        / "certs"
+        / "rnp-icpedu-gr46-ov-tls-ca-2025.pem"
+    )
+    assert hashlib.sha256(certificate.read_bytes()).hexdigest() == (
+        "c5bdf436a7984e244eeacc7d500469d651d13df28d0267e84264f2d94e59443e"
+    )
+    context = InepIdebAdapter._tls_context()
+    assert context.verify_mode != 0
 
 
 def _payload(path: Path) -> FetchedPayload:

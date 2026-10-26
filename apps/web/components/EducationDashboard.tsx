@@ -37,6 +37,14 @@ const stageLabels: Record<string, string> = {
   pnae_full_time_secondary: "Ensino médio integral",
 };
 
+const networkLabels: Record<string, string> = {
+  all: "todas as redes",
+  federal: "federal",
+  state: "estadual",
+  municipal: "municipal",
+  private: "privada",
+};
+
 function SourceNote({ source }: { source: EducationSource | null | undefined }) {
   if (!source) {
     return (
@@ -66,6 +74,9 @@ function MetricValue({ metric }: { metric: EducationMetric }) {
   const value = Number(metric.value);
   if (metric.indicator === "pnae_transfer_planned_brl") {
     return <>{value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</>;
+  }
+  if (metric.indicator === "approval_rate") {
+    return <>{(value * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</>;
   }
   return <>{value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</>;
 }
@@ -128,7 +139,7 @@ export function EducationDashboard({ code }: { code: string }) {
               {ideb.map((metric) => (
                 <div key={`${metric.indicator}-${metric.network}`}>
                   <p className="text-xs text-ink/55">
-                    {metricLabels[metric.indicator] ?? metric.indicator} · {metric.network}
+                    {metricLabels[metric.indicator] ?? metric.indicator} · {networkLabels[metric.network] ?? metric.network}
                   </p>
                   <p className="text-2xl font-black"><MetricValue metric={metric} /></p>
                   <p className="text-[11px] text-ink/45">
@@ -153,7 +164,7 @@ export function EducationDashboard({ code }: { code: string }) {
                 <div key={`${metric.indicator}-${metric.network}-${metric.stage}`}>
                   <p className="text-xs text-ink/55">
                     {metricLabels[metric.indicator] ?? metric.indicator} ·{" "}
-                    {stageLabels[metric.stage] ?? metric.stage} · rede {metric.network}
+                    {stageLabels[metric.stage] ?? metric.stage} · rede {networkLabels[metric.network] ?? metric.network}
                   </p>
                   <p className="text-2xl font-black"><MetricValue metric={metric} /></p>
                   <p className="text-[11px] text-ink/45">
@@ -213,6 +224,9 @@ export function EducationDashboard({ code }: { code: string }) {
         </p>
       </div>
       <div className="mt-8 flex flex-wrap gap-4">
+        <Link href={`/comparar?indicador=education:ideb&municipios=${code},3509502,3550308`} className="button-primary">Comparar Ideb</Link>
+        <Link href={`/comparar?indicador=education:saeb_mathematics&municipios=${code},3509502,3550308`} className="button-secondary">Comparar Saeb</Link>
+        <Link href={`/comparar?indicador=education:enrollment_count&municipios=${code},3509502,3550308`} className="button-secondary">Comparar matrículas</Link>
         <Link href="/buscar?sector=educacao" className="button-primary">Ver fontes de educação</Link>
         <Link href={`/municipios/${code}`} className="button-secondary">Voltar ao município</Link>
       </div>

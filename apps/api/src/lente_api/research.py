@@ -24,6 +24,37 @@ class ResearchDefinition:
     scope_required: bool = True
 
 
+EDUCATION_METRIC_META: dict[str, tuple[str, str, str]] = {
+    "approval_rate": (
+        "Indicador de rendimento",
+        "%",
+        "Taxa convertida de proporção para percentual na consulta.",
+    ),
+    "ideb": ("Ideb", "índice", "Índice oficial por rede e etapa, sem combinar recortes."),
+    "pnae_students_planned": (
+        "Alunos considerados no PNAE",
+        "alunos",
+        "Previsão do FNDE por modalidade; categorias podem se sobrepor.",
+    ),
+    "pnae_transfer_planned_brl": (
+        "Valor previsto do PNAE",
+        "BRL nominal",
+        "Previsão publicada pelo FNDE; não equivale a pagamento.",
+    ),
+    "saeb_mathematics": (
+        "Proficiência Saeb em Matemática",
+        "pontos",
+        "Média oficial por rede e etapa.",
+    ),
+    "saeb_mean": ("Média padronizada Saeb", "pontos", "Média oficial por rede e etapa."),
+    "saeb_portuguese": (
+        "Proficiência Saeb em Língua Portuguesa",
+        "pontos",
+        "Média oficial por rede e etapa.",
+    ),
+}
+
+
 STATIC_DEFINITIONS = {
     "education:enrollment_count": ResearchDefinition(
         "education:enrollment_count",
@@ -318,7 +349,11 @@ def research_definitions(db: Session) -> list[dict[str, Any]]:
     )
     for prefix, sql in dynamic_queries:
         for row in db.execute(text(sql)):
-            item = _row_definition(prefix, row)
+            overrides: dict[str, Any] = {}
+            if prefix == "education" and str(row.code) in EDUCATION_METRIC_META:
+                label, unit, methodology = EDUCATION_METRIC_META[str(row.code)]
+                overrides = {"label": label, "unit": unit, "methodology": methodology}
+            item = _row_definition(prefix, row, **overrides)
             definitions[item.code] = item
     counts = definition_counts(db)
     return [
@@ -484,7 +519,11 @@ def definition_by_code(db: Session, code: str) -> dict[str, Any] | None:
     ).one_or_none()
     if row is None:
         return None
-    definition = _row_definition(prefix, row)
+    overrides: dict[str, Any] = {}
+    if prefix == "education" and metric in EDUCATION_METRIC_META:
+        label, unit, methodology = EDUCATION_METRIC_META[metric]
+        overrides = {"label": label, "unit": unit, "methodology": methodology}
+    definition = _row_definition(prefix, row, **overrides)
     count = int(row.rows)
     return {**asdict(definition), "row_count": count, "published": True}
 
@@ -525,12 +564,20 @@ BASE_SELECTS: dict[str, str] = {
         SELECT 'education:' || f.metric_code indicator_code,f.municipality_ibge_code geo_id,
         m.name geo_name,m.state,make_date(f.reference_year,1,1) period_start,
         make_date(f.reference_year,12,31) period_end,
-        jsonb_build_object('network',f.network_code,'stage',f.stage_code) scope,
-        md5(jsonb_build_object('network',f.network_code,'stage',f.stage_code)::text) scope_key,
-        f.value,f.availability_status,'conforme indicador' unit,'conforme avaliação' periodicity,
+        jsonb_build_object('dataset',d.code,'dataset_label',d.title,'network',f.network_code,
+        'network_label',n.name,'stage',f.stage_code,'stage_label',es.name) scope,
+        md5(jsonb_build_object('dataset',d.code,'network',f.network_code,'stage',f.stage_code)::text)
+        scope_key,CASE WHEN f.metric_code='approval_rate' THEN f.value * 100 ELSE f.value END value,
+        f.availability_status,CASE WHEN f.metric_code='approval_rate' THEN '%'
+        WHEN f.metric_code='pnae_transfer_planned_brl' THEN 'BRL nominal'
+        WHEN f.metric_code='pnae_students_planned' THEN 'alunos'
+        WHEN f.metric_code='ideb' THEN 'índice' ELSE 'pontos' END unit,
+        'conforme avaliação' periodicity,
         d.code dataset,s.provider,s.license,ss.url source_url,ss.sha256,ss.fetched_at retrieved_at,
         ss.published_at,1 revision FROM education_metrics f
         JOIN publication_releases pr ON pr.id=f.release_id AND pr.status='published'
+        JOIN education_networks n ON n.code=f.network_code
+        JOIN education_stages es ON es.code=f.stage_code
         JOIN municipalities m ON m.ibge_code=f.municipality_ibge_code
         JOIN source_snapshots ss ON ss.id=f.snapshot_id JOIN datasets d ON d.id=ss.dataset_id
         JOIN sources s ON s.id=d.source_id WHERE f.metric_code=:metric
@@ -586,7 +633,8 @@ def _fixed_select(code: str) -> tuple[str, dict[str, Any]]:
         return (
             """SELECT :indicator indicator_code,f.municipality_ibge_code geo_id,m.name geo_name,
             m.state,make_date(f.census_year,1,1) period_start,make_date(f.census_year,12,31)
-            period_end,jsonb_build_object('stage',f.stage_code,'dependency',f.dependency_code) scope,
+            period_end,jsonb_build_object('stage',f.stage_code,'stage_label',es.name,
+            'dependency',f.dependency_code,'dependency_label',ed.name) scope,
             md5(jsonb_build_object('stage',f.stage_code,'dependency',f.dependency_code)::text)
             scope_key,sum(f.enrollment_count)::numeric value,
             CASE WHEN bool_and(f.availability_status='available') THEN 'available' ELSE 'unavailable'
@@ -594,9 +642,11 @@ def _fixed_select(code: str) -> tuple[str, dict[str, Any]]:
             s.license,ss.url source_url,ss.sha256,ss.fetched_at retrieved_at,ss.published_at,1 revision
             FROM education_enrollments f JOIN publication_releases pr ON pr.id=f.release_id
             AND pr.status='published' JOIN municipalities m ON m.ibge_code=f.municipality_ibge_code
+            JOIN education_stages es ON es.code=f.stage_code
+            JOIN education_dependencies ed ON ed.code=f.dependency_code
             JOIN source_snapshots ss ON ss.id=f.snapshot_id JOIN datasets d ON d.id=ss.dataset_id
             JOIN sources s ON s.id=d.source_id GROUP BY f.municipality_ibge_code,m.name,m.state,
-            f.census_year,f.stage_code,f.dependency_code,d.code,s.provider,s.license,ss.url,ss.sha256,
+            f.census_year,f.stage_code,es.name,f.dependency_code,ed.name,d.code,s.provider,s.license,ss.url,ss.sha256,
             ss.fetched_at,ss.published_at""",
             {"indicator": code},
         )
@@ -794,6 +844,15 @@ def _procurement_select(code: str) -> tuple[str, dict[str, Any]]:
     return sql, {"indicator": code, "unit": unit}
 
 
+def _indicator_select(indicator: str) -> tuple[str, dict[str, Any]]:
+    prefix, _, metric = indicator.partition(":")
+    if indicator == "education:enrollment_count":
+        return _fixed_select(indicator)
+    if prefix in BASE_SELECTS:
+        return BASE_SELECTS[prefix], {"metric": metric}
+    return _fixed_select(indicator)
+
+
 def research_points(
     db: Session,
     *,
@@ -808,12 +867,7 @@ def research_points(
     definition = definition_by_code(db, indicator)
     if definition is None:
         raise KeyError(indicator)
-    prefix, _, metric = indicator.partition(":")
-    if prefix in BASE_SELECTS:
-        inner = BASE_SELECTS[prefix]
-        params: dict[str, Any] = {"metric": metric}
-    else:
-        inner, params = _fixed_select(indicator)
+    inner, params = _indicator_select(indicator)
     filters = ["q.geo_id IN :geo_ids"]
     params["geo_ids"] = geo_ids
     if start_year is not None:

@@ -22,6 +22,7 @@ from lente_api.models import (
     Source,
     SourceSnapshot,
 )
+from lente_api.research import _indicator_select
 
 
 def test_research_routes_are_public_and_read_only_except_saved_query() -> None:
@@ -33,6 +34,15 @@ def test_research_routes_are_public_and_read_only_except_saved_query() -> None:
     assert set(paths["/api/v1/research/export.csv"]) == {"get"}
     assert set(paths["/api/v1/research/export.json"]) == {"get"}
     assert set(paths["/api/v1/research/queries"]) == {"post"}
+
+
+def test_enrollment_uses_aggregate_table_instead_of_metric_prefix_query() -> None:
+    enrollment_sql, enrollment_params = _indicator_select("education:enrollment_count")
+    ideb_sql, ideb_params = _indicator_select("education:ideb")
+    assert "FROM education_enrollments" in enrollment_sql
+    assert enrollment_params == {"indicator": "education:enrollment_count"}
+    assert "FROM education_metrics" in ideb_sql
+    assert ideb_params == {"metric": "ideb"}
 
 
 @pytest.mark.integration
