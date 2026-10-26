@@ -10,6 +10,7 @@ const links = [
   ["Pesquisa", "/pesquisa"],
   ["Comparar", "/comparar"],
   ["Catálogo", "/buscar"],
+  ["Contribuir", "/contribuir/fonte"],
   ["Fontes", "/fontes"],
   ["Lente Ribeirão", "/municipios/3543402"],
   ["Dados abertos", "/dados-abertos"],

@@ -97,6 +97,15 @@ Critério de saída: falhas de uma fonte não derrubam a API ou o frontend; o ú
 
 ## Ordem de execução
 
+## Etapa 5 — contribuições e governança segura
+
+- submissão pública mínima sem login, desafio antiabuso, quota e contato opcional cifrado;
+- estados auditáveis sem promoção automática para fonte, dataset ou release;
+- curadoria OAuth2/OIDC com MFA, RBAC e segregação submitter/aprovador;
+- descoberta CKAN allowlisted com diffs e detecção de ausência somente em varredura completa;
+- organizações/representantes verificados e arquivos em volume privado com ZIP guard/ClamAV;
+- métricas de fila/defasagem, rollback e runbook em `GOVERNANCE.md`.
+
 ## Etapa 4 — pesquisa pública transversal concluída em 25/10/2026
 
 - dicionário efetivo sobre todas as tabelas temáticas;

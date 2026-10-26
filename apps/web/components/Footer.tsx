@@ -16,6 +16,7 @@ export function Footer() {
           <Link href="/metodologia" className="text-white/70 hover:text-white">Metodologia</Link>
           <Link href="/fontes" className="text-white/70 hover:text-white">Fontes</Link>
           <Link href="/dados-abertos" className="text-white/70 hover:text-white">API e downloads</Link>
+          <Link href="/contribuir/fonte" className="text-white/70 hover:text-white">Sugerir uma fonte</Link>
         </div>
         <div className="grid content-start gap-3 text-sm">
           <p className="font-bold text-gold">Projeto</p>

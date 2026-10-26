@@ -65,6 +65,18 @@ Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa
 
 ## Política de verificação
 
+Descobertas automáticas em CKAN são `metadata_only`: ficam em `source_discoveries` com diffs e
+não alteram os estados `confirmed`, `implemented` ou `published`. URLs de cidadãos também são
+apenas indicações e nunca são acessadas no request público. Hosts CKAN oficiais precisam ser
+configurados e auditados antes de o worker consultá-los; sem configuração, nenhuma descoberta
+externa é executada.
+
+Em 26/10/2026, os caminhos candidatos `https://dados.gov.br/dados/api/3/action/package_search`
+e `https://dados.gov.br/api/3/action/package_search` responderam HTTP 401 neste ambiente. Como
+não houve resposta CKAN pública nem autenticação autorizada, eles não foram configurados como
+integração operacional e nenhum metadado foi inventado. O coletor CKAN permanece pronto para
+um endpoint oficial permitido que seja homologado e inserido na allowlist.
+
 Uma fonte só muda para `confirmed` quando a URL canônica responde e o conteúdo é conferido contra município, período, unidade e schema esperados. Mudança de schema bloqueia publicação da nova carga, registra uma ocorrência de qualidade e preserva o último valor validado.
 
 ## Fechamento horizontal — 24/10/2026

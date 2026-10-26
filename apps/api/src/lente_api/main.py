@@ -13,6 +13,7 @@ from lente_api.api import router
 from lente_api.discovery_api import router as discovery_router
 from lente_api.education_api import router as education_router
 from lente_api.exports_api import router as exports_router
+from lente_api.governance_api import router as governance_router
 from lente_api.health_api import router as health_router
 from lente_api.horizontal_api import router as horizontal_router
 from lente_api.research_api import router as research_router
@@ -61,7 +62,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Accept", "Content-Type", "X-Client-ID", "X-Request-ID"],
+    allow_headers=["Accept", "Authorization", "Content-Type", "X-Client-ID", "X-Request-ID"],
 )
 
 
@@ -90,6 +91,7 @@ app.include_router(discovery_router)
 app.include_router(education_router)
 app.include_router(exports_router)
 app.include_router(health_router)
+app.include_router(governance_router)
 app.include_router(horizontal_router)
 app.include_router(research_router)
 app.include_router(sectors_router)

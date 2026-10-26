@@ -181,3 +181,17 @@ SENATRAN a data de referência. Série nacional como IPCA ou Selic nunca recebe 
 `integrated_not_published`, `under_review`, `restricted`, `portal_only` ou `unavailable`.
 `technical_owner` identifica responsabilidade interna e `last_checked_at` registra a última
 classificação, sem transformar automaticamente inventário candidato em fonte homologada.
+
+## Governança e contribuições
+
+- `organizations`: organização candidata, domínio, HMAC do identificador legal e evidência/status
+  de verificação humana.
+- `organization_representatives`: sujeito do IdP vinculado à organização; `pending`, `verified`
+  ou `revoked`, com evidência privada por chave/hash.
+- `source_submissions`: indicação de fonte, origem, URL ainda não confiável, contato cifrado,
+  fingerprint HMAC, organização e estado do workflow. `published` não é publicação de dados.
+- `submission_reviews`: transição, sujeito/papel do revisor, justificativa e evidência.
+- `audit_events`: cadeia append-only por sequência, hash anterior e hash do evento.
+- `source_discoveries`: metadado CKAN e hashes/diffs; sempre fila de revisão.
+- `quarantined_uploads`: metadado e hash do arquivo privado; status do antivírus, nunca conteúdo
+  público.

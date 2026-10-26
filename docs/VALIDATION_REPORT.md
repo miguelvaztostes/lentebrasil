@@ -432,3 +432,28 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
 - O inventário continua candidato. TSE, SSP-SP, Câmara/Senado, TerraBrasilis, Cemaden,
   S2ID/Atlas, cultura, Cadastur e MCTI permanecem com decisões e bloqueios explícitos descritos em
   `HORIZONTAL_SOURCE_AUDIT.md`; não são apresentados como cobertura publicada.
+
+## Etapa 5 — contribuições e governança segura — 26/10/2026
+
+- Migração limpa PostgreSQL 16 até `0019` e ciclo `0019 → 0018 → 0019` aprovados. A trilha
+  `audit_events` rejeitou alteração em teste e preservou a cadeia de hashes.
+- A suíte completa passou com 69 testes. A cobertura nova inclui submissão sem fetch remoto,
+  replay de desafio, quota horária, SSRF contra loopback/RFC1918/link-local/metadata, redirect
+  fora da allowlist, DNS rebinding, ZIP bomb, MIME indevido, contato cifrado, token/MFA, RBAC,
+  request com cookie sem Bearer, revisão humana, segregação de funções e rollback.
+- O fluxo institucional foi exercitado do cadastro da organização à verificação humana do
+  representante, submissão autenticada e CSV pendente em storage de quarentena. Arquivo limpo
+  não é promovido automaticamente e o próprio representante não consegue revisar a indicação.
+- Ruff e formatação passaram em 75 arquivos. Frontend: teste de conteúdo, teste E2E das rotas,
+  TypeScript e build de produção Next.js passaram; `/contribuir/fonte` e `/curadoria` foram
+  geradas e responderam HTTP 200 no Compose.
+- `GET /api/v1/health` e `GET /api/v1/source-submissions/captcha` responderam HTTP 200 no
+  ambiente local. Endpoints de curadoria recusam ausência de Bearer; CORS permite o header
+  `Authorization` sem habilitar cookies.
+- O worker de descoberta não foi ativado: os dois caminhos CKAN candidatos de `dados.gov.br`
+  responderam HTTP 401 em verificação manual e `CKAN_DISCOVERY_URLS`/allowlist permanecem vazios.
+  Nenhuma descoberta externa é alegada como realizada.
+- Não havia IdP real nem daemon ClamAV configurado no ambiente. Esses caminhos falham fechados:
+  o backoffice retorna indisponível sem introspecção e uploads permanecem `pending`/quarentena
+  sem scanner. Contrato de token, MFA e protocolo INSTREAM foram testados sem afirmar integração
+  operacional com provedor externo.

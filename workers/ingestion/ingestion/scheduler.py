@@ -15,10 +15,12 @@ from ingestion.exports import (
     execute_export_job,
 )
 from ingestion.factory import LEGACY_MUNICIPALITY
+from ingestion.governance import discover_ckan, scan_quarantined_uploads
 from ingestion.jobs import claim_next_job, execute_job, schedule_job
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("lente.ingestion")
+_last_discovery_at = 0.0
 
 
 def emit(event: str, **fields: object) -> None:
@@ -64,8 +66,24 @@ def seed_recurring_jobs() -> None:
 
 
 def cycle(*, max_jobs: int = 10) -> int:
+    global _last_discovery_at
     processed = 0
     with SessionLocal() as db:
+        now = time.monotonic()
+        if now - _last_discovery_at >= get_settings().discovery_interval_seconds:
+            try:
+                discovery = discover_ckan(db)
+                if discovery["registries"]:
+                    emit("source_discovery_completed", **discovery)
+                _last_discovery_at = now
+            except Exception as exc:  # noqa: BLE001 - discovery cannot block ingestion
+                emit("source_discovery_failed", error=str(exc)[:1000])
+        try:
+            scans = scan_quarantined_uploads(db)
+            if scans["pending"]:
+                emit("quarantine_scan_completed", **scans)
+        except Exception as exc:  # noqa: BLE001 - scanner cannot block ingestion
+            emit("quarantine_scan_failed", error=str(exc)[:1000])
         expired = cleanup_expired_exports(
             db, raw_data_dir=Path(get_settings().raw_data_dir)
         )

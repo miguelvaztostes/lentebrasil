@@ -14,6 +14,8 @@ test("territorial routes render and shared search URL is accepted", { skip: !bas
     "/municipios/3509502",
     "/municipios/3550308",
     "/fontes/LNT-0001",
+    "/contribuir/fonte",
+    "/curadoria",
   ];
   for (const path of paths) {
     const response = await fetch(`${baseUrl}${path}`);

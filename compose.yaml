@@ -29,8 +29,18 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://lente:lente-local@db:5432/lente}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost}
       RAW_DATA_DIR: /data/raw
+      QUARANTINE_DIR: /data/quarantine
+      SUBMISSION_CAPTCHA_SECRET: ${SUBMISSION_CAPTCHA_SECRET:-development-only-change-me}
+      SUBMISSION_FINGERPRINT_SECRET: ${SUBMISSION_FINGERPRINT_SECRET:-development-only-change-me}
+      CONTACT_ENCRYPTION_KEY: ${CONTACT_ENCRYPTION_KEY:-}
+      OIDC_INTROSPECTION_URL: ${OIDC_INTROSPECTION_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
     volumes:
       - raw_data:/data/raw
+      - quarantine_data:/data/quarantine
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -60,8 +70,15 @@ services:
       INGESTION_SOURCES: ${INGESTION_SOURCES:-ibge,siconfi,cnes}
       SICONFI_START_YEAR: ${SICONFI_START_YEAR:-2022}
       SICONFI_END_YEAR: ${SICONFI_END_YEAR:-2025}
+      QUARANTINE_DIR: /data/quarantine
+      CKAN_DISCOVERY_URLS: ${CKAN_DISCOVERY_URLS:-}
+      DISCOVERY_ALLOWED_HOSTS: ${DISCOVERY_ALLOWED_HOSTS:-}
+      DISCOVERY_INTERVAL_SECONDS: ${DISCOVERY_INTERVAL_SECONDS:-86400}
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
     volumes:
       - raw_data:/data/raw
+      - quarantine_data:/data/quarantine
     depends_on:
       api:
         condition: service_healthy
@@ -115,6 +132,7 @@ services:
 volumes:
   postgres_data:
   raw_data:
+  quarantine_data:
   caddy_data:
   caddy_config:
 

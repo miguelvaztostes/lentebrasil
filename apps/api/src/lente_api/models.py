@@ -1144,3 +1144,160 @@ class DataQualityIssue(Base):
     status: Mapped[str] = mapped_column(String(40), default="open")
 
     run: Mapped[IngestionRun] = relationship(back_populates="issues")
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+    __table_args__ = (
+        CheckConstraint(
+            "verification_status IN ('pending','verified','rejected')",
+            name="ck_organizations_verification_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(240), index=True)
+    legal_identifier_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    official_domain: Mapped[str | None] = mapped_column(String(200))
+    verification_status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    verification_evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_by_subject: Mapped[str | None] = mapped_column(String(240))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class OrganizationRepresentative(Base):
+    __tablename__ = "organization_representatives"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','verified','revoked')",
+            name="ck_organization_representatives_status",
+        ),
+        UniqueConstraint("organization_id", "subject", name="uq_organization_representative"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    subject: Mapped[str] = mapped_column(String(240), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    evidence_storage_key: Mapped[str | None] = mapped_column(Text)
+    evidence_sha256: Mapped[str | None] = mapped_column(String(64))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_by_subject: Mapped[str | None] = mapped_column(String(240))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class SourceSubmission(Base):
+    __tablename__ = "source_submissions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('received','triage','verified','quarantined',"
+            "'approved','rejected','published')",
+            name="ck_source_submissions_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    public_name: Mapped[str] = mapped_column(String(160))
+    organization_name: Mapped[str] = mapped_column(String(240))
+    proposed_url: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text)
+    contact_ciphertext: Mapped[str | None] = mapped_column(Text)
+    notification_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    submitter_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    submitted_by_subject: Mapped[str | None] = mapped_column(String(240), index=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id"), index=True
+    )
+    challenge_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    status: Mapped[str] = mapped_column(String(40), default="received", index=True)
+    source_origin: Mapped[str] = mapped_column(String(40), default="third_party_submission")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class SubmissionReview(Base):
+    __tablename__ = "submission_reviews"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    submission_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_submissions.id"), index=True
+    )
+    from_status: Mapped[str] = mapped_column(String(40))
+    to_status: Mapped[str] = mapped_column(String(40), index=True)
+    reviewer_subject: Mapped[str] = mapped_column(String(240), index=True)
+    reviewer_role: Mapped[str] = mapped_column(String(40))
+    reason: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    sequence: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    actor_subject: Mapped[str] = mapped_column(String(240), index=True)
+    actor_role: Mapped[str] = mapped_column(String(40))
+    action: Mapped[str] = mapped_column(String(120), index=True)
+    resource_type: Mapped[str] = mapped_column(String(80), index=True)
+    resource_id: Mapped[str] = mapped_column(String(120), index=True)
+    reason: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    previous_hash: Mapped[str | None] = mapped_column(String(64))
+    event_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class SourceDiscovery(Base):
+    __tablename__ = "source_discoveries"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('review_pending','reviewed','rejected','missing_review')",
+            name="ck_source_discoveries_status",
+        ),
+        UniqueConstraint("registry", "external_id", name="uq_source_discovery_external"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    registry_name: Mapped[str] = mapped_column("registry", String(120), index=True)
+    external_id: Mapped[str] = mapped_column(String(240), index=True)
+    title: Mapped[str] = mapped_column(String(500))
+    license: Mapped[str | None] = mapped_column(String(240))
+    canonical_url: Mapped[str] = mapped_column(Text)
+    etag: Mapped[str | None] = mapped_column(String(240))
+    schema_hash: Mapped[str | None] = mapped_column(String(64))
+    metadata_hash: Mapped[str] = mapped_column(String(64))
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    diff_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(40), default="review_pending", index=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class QuarantinedUpload(Base):
+    __tablename__ = "quarantined_uploads"
+    __table_args__ = (
+        CheckConstraint(
+            "scan_status IN ('pending','clean','infected','scan_failed')",
+            name="ck_quarantined_uploads_scan_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    submission_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_submissions.id"), index=True
+    )
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id"), index=True
+    )
+    uploaded_by_subject: Mapped[str] = mapped_column(String(240), index=True)
+    original_filename: Mapped[str] = mapped_column(String(260))
+    storage_key: Mapped[str] = mapped_column(Text, unique=True)
+    media_type: Mapped[str] = mapped_column(String(120))
+    byte_count: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    scan_status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    scan_details: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -36,6 +36,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
 - Jobs persistidos no PostgreSQL com lock, checkpoint, retomada, retry e backfill por janela.
 - CSV por indicador, status público dos pipelines, health/readiness e logs estruturados.
 - Docker Compose, Caddy opcional, testes e CI.
+- Contribuição anônima de fontes em `/contribuir/fonte`, fila humana, RBAC/MFA, trilha imutável,
+  descoberta CKAN controlada e uploads privados em quarentena.
 
 A visão geral de transparência combina fontes supramunicipais oficiais verificadas. Ela não afirma
 cobertura integral de todos os portais ou atos públicos; lacunas aparecem como indisponíveis.
@@ -189,8 +191,14 @@ Principais rotas:
 - `GET /api/v1/catalog/matrix?limit=200`
 - `GET /api/v1/catalog/matrix.csv`
 - `POST /api/v1/export-jobs` e `GET /api/v1/export-jobs/{id}`
+- `GET /api/v1/source-submissions/captcha` e `POST /api/v1/source-submissions`
+- `GET /api/v1/curation/submissions`, `POST .../reviews` e `POST .../rollback` (protegidos)
+- `GET /api/v1/curation/discoveries`, `POST .../{id}/review`, `/audit-events` e `/metrics`
+  (protegidos)
 
 Listagens têm limites validados. A exportação inclui hash e URL do snapshot. Ingestão não possui endpoint público.
+O fluxo de contribuições não acessa URLs sugeridas nem publica dados automaticamente. Consulte
+[docs/GOVERNANCE.md](docs/GOVERNANCE.md) para RBAC, MFA, SSRF, quarentena, LGPD e runbook.
 Exportações grandes são processadas fora do request em CSV/Parquet, expiram após 24 horas e
 possuem quotas por identidade. Consulte `docs/HORIZONTAL_SOURCE_AUDIT.md` para cobertura,
 decisões dos 165 recursos e pendências.
