@@ -9,6 +9,9 @@
   --gold: #e3af42;
   --paper: #f5f3ed;
   --mist: #e8f3f2;
+  --forest: #073f35;
+  --forest-deep: #062f29;
+  --lime: #c9d86a;
 }
 
 * { box-sizing: border-box; }
@@ -19,13 +22,27 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at 90% 2%, rgba(17, 158, 156, 0.12), transparent 28rem),
+    radial-gradient(circle at 90% 2%, rgba(17, 158, 156, 0.13), transparent 28rem),
+    radial-gradient(circle at 8% 34%, rgba(227, 175, 66, 0.08), transparent 24rem),
     #fbfaf7;
   font-family: Inter, Manrope, "Segoe UI", Arial, sans-serif;
   text-rendering: optimizeLegibility;
 }
 
 a { color: inherit; }
+
+::selection { color: white; background: var(--teal); }
+
+main h1,
+main h2 { font-family: Georgia, "Times New Roman", serif; letter-spacing: -0.035em; }
+
+input,
+select,
+textarea { transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease; }
+
+input:focus,
+select:focus,
+textarea:focus { border-color: var(--teal) !important; box-shadow: 0 0 0 4px rgba(17, 158, 156, 0.12); outline: none; }
 
 :focus-visible {
   outline: 3px solid var(--gold);
@@ -36,10 +53,46 @@ a { color: inherit; }
 @layer components {
   .container-page { @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10; }
   .eyebrow { @apply text-xs font-bold uppercase tracking-[0.2em] text-teal; }
-  .card { @apply rounded-2xl border border-ink/10 bg-white shadow-card; }
-  .button-primary { @apply inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 text-sm font-bold text-white transition hover:bg-teal; }
-  .button-secondary { @apply inline-flex items-center justify-center rounded-full border border-ink/20 bg-white px-5 py-3 text-sm font-bold text-ink transition hover:border-teal hover:text-teal; }
+  .card { @apply rounded-2xl border border-ink/10 bg-white shadow-card; background-image: linear-gradient(145deg, rgba(255,255,255,1), rgba(250,250,247,.92)); }
+  .display-title { font-family: Georgia, "Times New Roman", serif; @apply font-normal tracking-[-0.045em]; }
+  .interactive-card { @apply transition duration-300 ease-out hover:-translate-y-1 hover:border-teal/50 hover:shadow-[0_24px_64px_rgba(6,47,41,0.14)]; }
+  .button-primary { @apply inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 text-sm font-bold text-white transition duration-300 hover:-translate-y-0.5 hover:bg-teal hover:shadow-lg; }
+  .button-secondary { @apply inline-flex items-center justify-center rounded-full border border-ink/20 bg-white px-5 py-3 text-sm font-bold text-ink transition duration-300 hover:-translate-y-0.5 hover:border-teal hover:text-teal hover:shadow-md; }
 }
+
+.editorial-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: white;
+  background:
+    radial-gradient(circle at 84% 16%, rgba(227, 175, 66, 0.95) 0 8%, transparent 8.2%),
+    radial-gradient(circle at 83% 20%, rgba(201, 216, 106, 0.22) 0 22%, transparent 22.2%),
+    linear-gradient(128deg, var(--forest-deep), var(--forest) 62%, #0b6654);
+}
+
+.editorial-hero::before,
+.editorial-hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+}
+
+.editorial-hero::before { width: 32rem; height: 32rem; right: -12rem; top: -15rem; }
+.editorial-hero::after { width: 22rem; height: 22rem; right: 4rem; bottom: -17rem; }
+
+.metric-tile {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(8px);
+}
+
+.reveal-bar { animation: reveal-bar 700ms cubic-bezier(.2,.8,.2,1) both; }
+
+@keyframes reveal-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 .grid-lines {
   background-image:
@@ -49,6 +102,6 @@ a { color: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
 

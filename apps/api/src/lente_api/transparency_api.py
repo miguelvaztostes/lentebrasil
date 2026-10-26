@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from lente_api.database import get_db
@@ -17,6 +17,8 @@ from lente_api.models import (
     Contract,
     Dataset,
     FiscalStatement,
+    Indicator,
+    Observation,
     Procurement,
     Source,
     SourceSnapshot,
@@ -104,18 +106,38 @@ def _dataset_source(db: Session, code: str) -> dict[str, Any]:
 def overview(
     db: DbSession,
     municipality: str = Query(..., pattern=r"^\d{7}$"),
-    year: int = Query(datetime.now(UTC).year, ge=2000, le=2100),
+    year: int | None = Query(None, ge=2000, le=2100),
     period: int | None = Query(None, ge=1, le=12),
 ) -> dict[str, Any]:
+    fiscal_year = db.scalar(
+        select(func.max(FiscalStatement.reference_year)).where(
+            FiscalStatement.municipality_ibge_code == municipality
+        )
+    )
+    observation_year = db.scalar(
+        select(func.max(extract("year", Observation.period_end)))
+        .join(Indicator, Indicator.id == Observation.indicator_id)
+        .where(
+            Observation.municipality_ibge_code == municipality,
+            Indicator.code.in_(
+                ("revenue_realized", "expense_committed", "expense_liquidated", "expense_paid")
+            ),
+            Observation.availability_status == "available",
+        )
+    )
+    selected_year = year or max(
+        [int(value) for value in (fiscal_year, observation_year) if value is not None],
+        default=datetime.now(UTC).year,
+    )
     expense_statement = _current(FiscalStatement).where(
         FiscalStatement.source_system == "tcesp_expense",
         FiscalStatement.municipality_ibge_code == municipality,
-        FiscalStatement.reference_year == year,
+        FiscalStatement.reference_year == selected_year,
     )
     revenue_statement = _current(FiscalStatement).where(
         FiscalStatement.source_system == "tcesp_revenue",
         FiscalStatement.municipality_ibge_code == municipality,
-        FiscalStatement.reference_year == year,
+        FiscalStatement.reference_year == selected_year,
     )
     if period is not None:
         expense_statement = expense_statement.where(FiscalStatement.reference_period == period)
@@ -129,13 +151,51 @@ def overview(
     revenues = revenue_statement.subquery()
     revenue_total = db.scalar(select(func.sum(revenues.c.amount)))
 
+    # TCE-SP facts remain the preferred source for the detailed overview. When
+    # that large resource has not been loaded, publish the already homologated
+    # Siconfi RREO observations without summing or reconciling the two sources.
+    used_siconfi_fallback = revenue_total is None and not phases
+    if used_siconfi_fallback:
+        siconfi_rows = db.execute(
+            select(Indicator.code, Observation.value)
+            .join(Observation, Observation.indicator_id == Indicator.id)
+            .where(
+                Observation.municipality_ibge_code == municipality,
+                extract("year", Observation.period_end) == selected_year,
+                Indicator.code.in_(
+                    (
+                        "revenue_realized",
+                        "expense_committed",
+                        "expense_liquidated",
+                        "expense_paid",
+                    )
+                ),
+                Observation.availability_status == "available",
+            )
+            .order_by(Observation.period_end.desc(), Observation.revision.desc())
+        ).all()
+        values: dict[str, Decimal] = {}
+        for code, value in siconfi_rows:
+            if value is not None and code not in values:
+                values[code] = value
+        revenue_total = values.get("revenue_realized")
+        phases = [
+            (phase, values[code])
+            for code, phase in (
+                ("expense_committed", "committed"),
+                ("expense_liquidated", "liquidated"),
+                ("expense_paid", "paid"),
+            )
+            if code in values
+        ]
+
     procurement_statement = _current(Procurement).where(
         Procurement.municipality_ibge_code == municipality,
-        Procurement.procurement_year == year,
+        Procurement.procurement_year == selected_year,
     )
     contract_statement = _current(Contract).where(
         Contract.municipality_ibge_code == municipality,
-        Contract.contract_year == year,
+        Contract.contract_year == selected_year,
     )
     procurement_count = (
         db.scalar(select(func.count()).select_from(procurement_statement.subquery())) or 0
@@ -143,7 +203,7 @@ def overview(
     contract_count = db.scalar(select(func.count()).select_from(contract_statement.subquery())) or 0
     return {
         "municipality_ibge_code": municipality,
-        "year": year,
+        "year": selected_year,
         "period": period,
         "revenue_collected": _money(revenue_total),
         "expense_phases": [{"phase": phase, "amount": _money(amount)} for phase, amount in phases],
@@ -156,14 +216,19 @@ def overview(
             "contracts": "available" if contract_count else "unavailable",
         },
         "sources": [
+            *([_dataset_source(db, "siconfi_rreo")] if used_siconfi_fallback else []),
             _dataset_source(db, "tcesp_revenues"),
             _dataset_source(db, "tcesp_expenses"),
             _dataset_source(db, "pncp_procurements"),
             _dataset_source(db, "pncp_contracts"),
         ],
         "methodology": (
-            "Receita arrecadada e eventos de despesa TCE-SP são somados somente dentro do "
-            "mesmo exercício e recorte mensal. Empenho, liquidação, pagamento, reforço e "
+            "Na ausência da carga detalhada do TCE-SP, esta visão usa o RREO/Siconfi "
+            "homologado para o exercício, mantendo receita realizada, empenho, liquidação e "
+            "pagamento separados. As fontes nunca são somadas entre si."
+            if used_siconfi_fallback
+            else "Receita arrecadada e eventos de despesa TCE-SP são somados somente dentro "
+            "do mesmo exercício e recorte mensal. Empenho, liquidação, pagamento, reforço e "
             "anulação permanecem separados; valores Siconfi não são adicionados aos totais."
         ),
     }

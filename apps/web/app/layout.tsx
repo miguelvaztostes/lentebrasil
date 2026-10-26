@@ -6,7 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Lente Brasil", template: "%s | Lente Brasil" },
   description: "Catálogo nacional e dados públicos municipais homologados, com fonte, método e histórico.",
-  icons: { icon: "/lente-ribeirao-simbolo.svg" },
+  icons: { icon: "/lente-brasil-simbolo.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

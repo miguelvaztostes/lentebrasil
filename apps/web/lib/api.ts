@@ -140,10 +140,20 @@ export type EducationMetric = {
   dataset?: string;
 };
 
+export type EducationBreakdown = {
+  code: string;
+  label: string;
+  network?: string;
+  value: number;
+};
+
 export type EducationMunicipality = {
   municipality: Municipality;
   school_count: number;
   enrollment_total: number | null;
+  schools_by_dependency: EducationBreakdown[];
+  enrollments_by_dependency: EducationBreakdown[];
+  enrollments_by_stage: EducationBreakdown[];
   metrics: EducationMetric[];
   sources: {
     schools: EducationSource | null;

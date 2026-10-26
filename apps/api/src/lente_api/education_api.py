@@ -12,6 +12,7 @@ from lente_api.models import (
     EducationDependency,
     EducationEnrollment,
     EducationMetric,
+    EducationStage,
     Municipality,
     PublicationRelease,
     SchoolVersion,
@@ -248,6 +249,9 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
     metric_releases = _published_metric_releases(db)
     school_count = 0
     enrollment_total = None
+    enrollments_by_dependency: list[dict[str, Any]] = []
+    enrollments_by_stage: list[dict[str, Any]] = []
+    schools_by_dependency: list[dict[str, Any]] = []
     schools_source = None
     if censo:
         dataset, release = censo
@@ -268,6 +272,95 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
                 EducationEnrollment.availability_status == "available",
             )
         )
+        dependency_rows = db.execute(
+            select(
+                EducationDependency.code,
+                EducationDependency.name,
+                EducationDependency.network_code,
+                func.sum(EducationEnrollment.enrollment_count),
+            )
+            .join(
+                EducationEnrollment,
+                EducationEnrollment.dependency_code == EducationDependency.code,
+            )
+            .where(
+                EducationEnrollment.release_id == release.id,
+                EducationEnrollment.municipality_ibge_code == code,
+                EducationEnrollment.stage_code == "all_basic",
+                EducationEnrollment.availability_status == "available",
+            )
+            .group_by(
+                EducationDependency.code,
+                EducationDependency.name,
+                EducationDependency.network_code,
+            )
+            .order_by(EducationDependency.code)
+        ).all()
+        enrollments_by_dependency = [
+            {
+                "code": dependency_code,
+                "label": dependency_name,
+                "network": network_code,
+                "value": value,
+            }
+            for dependency_code, dependency_name, network_code, value in dependency_rows
+        ]
+        school_rows = db.execute(
+            select(
+                EducationDependency.code,
+                EducationDependency.name,
+                EducationDependency.network_code,
+                func.count(SchoolVersion.id),
+            )
+            .join(
+                SchoolVersion,
+                SchoolVersion.dependency_code == EducationDependency.code,
+            )
+            .where(
+                SchoolVersion.release_id == release.id,
+                SchoolVersion.municipality_ibge_code == code,
+            )
+            .group_by(
+                EducationDependency.code,
+                EducationDependency.name,
+                EducationDependency.network_code,
+            )
+            .order_by(EducationDependency.code)
+        ).all()
+        schools_by_dependency = [
+            {
+                "code": dependency_code,
+                "label": dependency_name,
+                "network": network_code,
+                "value": value,
+            }
+            for dependency_code, dependency_name, network_code, value in school_rows
+        ]
+        stage_rows = db.execute(
+            select(
+                EducationStage.code,
+                EducationStage.name,
+                EducationStage.display_order,
+                func.sum(EducationEnrollment.enrollment_count),
+            )
+            .join(EducationEnrollment, EducationEnrollment.stage_code == EducationStage.code)
+            .where(
+                EducationEnrollment.release_id == release.id,
+                EducationEnrollment.municipality_ibge_code == code,
+                EducationEnrollment.stage_code != "all_basic",
+                EducationEnrollment.availability_status == "available",
+            )
+            .group_by(
+                EducationStage.code,
+                EducationStage.name,
+                EducationStage.display_order,
+            )
+            .order_by(EducationStage.display_order)
+        ).all()
+        enrollments_by_stage = [
+            {"code": stage_code, "label": stage_name, "value": value}
+            for stage_code, stage_name, _display_order, value in stage_rows
+        ]
         schools_source = _source(db, dataset, release)
     metric_items: list[dict[str, Any]] = []
     metric_sources: dict[str, Any] = {}
@@ -301,6 +394,9 @@ def municipality_education(code: str, db: DbSession) -> dict[str, Any]:
         },
         "school_count": school_count,
         "enrollment_total": enrollment_total,
+        "schools_by_dependency": schools_by_dependency,
+        "enrollments_by_dependency": enrollments_by_dependency,
+        "enrollments_by_stage": enrollments_by_stage,
         "metrics": metric_items,
         "sources": {
             "schools": schools_source,

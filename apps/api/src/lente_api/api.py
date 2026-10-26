@@ -753,15 +753,141 @@ def _municipality_summary(db: Session, municipality_code: str) -> dict[str, Any]
             .order_by(CatalogEntry.area_slug)
         ).all()
     )
+    # Publication facts live in domain-specific tables as well as in observations.
+    # Counting only observations made loaded datasets (notably education and the
+    # sector wave) appear as unavailable on the municipal profile.
     published_by_area = dict(
         db.execute(
-            select(Dataset.domain, func.count(func.distinct(Dataset.id)))
-            .join(SourceSnapshot, SourceSnapshot.dataset_id == Dataset.id)
-            .join(Observation, Observation.snapshot_id == SourceSnapshot.id)
-            .where(Observation.municipality_ibge_code == municipality_code)
-            .group_by(Dataset.domain)
+            text(
+                """
+                SELECT published.domain, count(DISTINCT published.dataset_id)
+                FROM (
+                    SELECT d.domain, d.id AS dataset_id
+                    FROM observations f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM school_versions f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM education_metrics f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM fiscal_statements f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM procurements f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM contracts f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM transfers f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM health_establishments f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM health_beds f
+                    JOIN health_establishments establishment
+                      ON establishment.id = f.establishment_id
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE establishment.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM health_services f
+                    JOIN health_establishments establishment
+                      ON establishment.id = f.establishment_id
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE establishment.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM health_production f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM health_epidemiology f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM economy_facts f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM labor_facts f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM social_benefit_facts f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM infrastructure_facts f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM agriculture_facts f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.municipality_ibge_code = :municipality
+                    UNION ALL
+                    SELECT d.domain, d.id
+                    FROM geospatial_assets f
+                    JOIN source_snapshots ss ON ss.id = f.snapshot_id
+                    JOIN datasets d ON d.id = ss.dataset_id
+                    WHERE f.geo_type = 'municipality' AND f.geo_code = :municipality
+                ) AS published
+                GROUP BY published.domain
+                """
+            ),
+            {"municipality": municipality_code},
         ).all()
     )
+    # Dataset domains predate the public catalog taxonomy in a few cases.
+    # Present those releases in the sector users actually navigate to.
+    domain_aliases = {"transparencia": "financas-publicas"}
+    normalized_published: dict[str, int] = {}
+    for domain, count in published_by_area.items():
+        area = domain_aliases.get(domain, domain)
+        normalized_published[area] = normalized_published.get(area, 0) + count
+    published_by_area = normalized_published
     areas = sorted(set(candidate_by_area) | set(published_by_area))
     return {
         "municipality": MunicipalityOut.model_validate(municipality).model_dump(),

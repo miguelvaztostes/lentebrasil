@@ -11,7 +11,7 @@ const phaseNames: Record<string, string> = { committed: "Empenhado", liquidated:
 const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 export function TransparencyDashboard({ municipalityCode = "3543402" }: { municipalityCode?: string }) {
-  const [year, setYear] = useState(() => String(new Date().getFullYear()));
+  const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
   const [query, setQuery] = useState("");
   const [fiscal, setFiscal] = useState<Paged<FiscalStatement> | null>(null);
@@ -59,7 +59,7 @@ export function TransparencyDashboard({ municipalityCode = "3543402" }: { munici
     </section>
     <section className="card p-6">
       <div className="grid gap-4 sm:grid-cols-4">
-        <label className="text-sm font-bold">Exercício<input className="mt-2 w-full rounded-lg border border-ink/20 p-3 font-normal" inputMode="numeric" placeholder="Todos" value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
+        <label className="text-sm font-bold">Exercício<input className="mt-2 w-full rounded-lg border border-ink/20 p-3 font-normal" inputMode="numeric" placeholder={`Último disponível (${overview.year})`} value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
         <label className="text-sm font-bold">Mês<select className="mt-2 w-full rounded-lg border border-ink/20 p-3 font-normal" value={month} onChange={(event) => setMonth(event.target.value)}><option value="">Ano inteiro</option>{months.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label>
         <label className="text-sm font-bold sm:col-span-2">Buscar em contratações<input className="mt-2 w-full rounded-lg border border-ink/20 p-3 font-normal" placeholder="Objeto ou órgão" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       </div>
@@ -86,4 +86,4 @@ function SourceLink({ source }: { source: { document_url: string; provider: stri
 
 function Empty() { return <div className="card mt-5 p-6"><p className="font-bold">Nenhum dado publicado para este recorte.</p><p className="mt-2 text-sm text-ink/65">Ausência não é exibida como zero.</p></div>; }
 
-function OverviewCard({ label, value, available }: { label: string; value: string; available: boolean }) { return <article className="card p-5"><p className="text-xs font-bold uppercase tracking-wider text-ink/50">{label}</p><p className="mt-3 text-2xl font-black">{available ? value : "Não disponível"}</p></article>; }
+function OverviewCard({ label, value, available }: { label: string; value: string; available: boolean }) { return <article className="card interactive-card border-t-4 border-t-gold p-5"><p className="text-xs font-bold uppercase tracking-wider text-ink/50">{label}</p><p className="mt-3 text-2xl font-black text-[#073f35]">{available ? value : "Não disponível"}</p></article>; }

@@ -3,11 +3,21 @@ import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatDate, formatValue, type Indicator, type Observation } from "@/lib/api";
 import { StatusBadge } from "./StatusBadge";
 
+const domainLabels: Record<string, string> = {
+  desenvolvimento: "Desenvolvimento",
+  educacao: "Educação",
+  saude: "Saúde",
+  transparencia: "Finanças públicas",
+  "financas-publicas": "Finanças públicas",
+  "economia-e-trabalho": "Economia e trabalho",
+  "infraestrutura-e-cidades": "Infraestrutura e cidades",
+};
+
 export function DataCard({ indicator, observation, municipalityCode }: { indicator: Indicator; observation: Observation; municipalityCode?: string }) {
   return (
-    <article className="card flex h-full flex-col p-6">
+    <article className="card interactive-card flex h-full flex-col p-6">
       <div className="flex items-start justify-between gap-4">
-        <p className="eyebrow">{indicator.domain}</p>
+        <p className="eyebrow">{domainLabels[indicator.domain] ?? indicator.domain.replaceAll("-", " ")}</p>
         <StatusBadge status={observation.availability_status} />
       </div>
       <p className="mt-7 text-3xl font-black tracking-tight text-ink sm:text-4xl">

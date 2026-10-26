@@ -22,7 +22,7 @@ export function Footer() {
           <p className="font-bold text-gold">Projeto</p>
           <Link href="/sobre" className="text-white/70 hover:text-white">Sobre</Link>
           <Link href="/privacidade" className="text-white/70 hover:text-white">Privacidade</Link>
-          <Link href="/municipios/3543402" className="text-white/70 hover:text-white">Visão Lente Ribeirão</Link>
+          <Link href="/municipios/3543402" className="text-white/70 hover:text-white">Ribeirão Preto</Link>
         </div>
       </div>
     </footer>

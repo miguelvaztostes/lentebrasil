@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="280" viewBox="0 0 1100 280" role="img" aria-label="Lente Ribeirão, observatório de dados públicos">
-  <g transform="translate(24 19) scale(1.12)"><g fill="none" stroke-linecap="butt">
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Símbolo Lente Brasil: lente, movimento das águas e pontos de dados">
+  <g fill="none" stroke-linecap="butt">
     <path d="M25 113 A77 77 0 0 1 126 27" stroke="#102333" stroke-width="20"/>
     <path d="M155 56 A77 77 0 0 1 171 127" stroke="#102333" stroke-width="20"/>
     <path d="M172 135 A77 77 0 0 1 36 149" stroke="#119E9C" stroke-width="20"/>
@@ -12,9 +12,4 @@
   <rect x="157" y="28" width="15" height="15" rx="1.5" fill="#E3AF42"/>
   <rect x="139" y="33" width="10" height="10" rx="1" fill="#119E9C"/>
   <rect x="175" y="51" width="9" height="9" rx="1" fill="#119E9C"/>
-  </g>
-  <g font-family="Inter, Manrope, Arial, sans-serif" font-weight="800" letter-spacing="-4">
-  <text x="264" y="117" font-size="114" fill="#102333">lente</text>
-  <text x="260" y="225" font-size="112" fill="#119E9C">ribeirão</text>
-  </g>
-  <text x="268" y="260" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="650" letter-spacing="3.0" fill="#102333">OBSERVATÓRIO DE DADOS PÚBLICOS</text></svg>
+</svg>

@@ -89,7 +89,7 @@ export function HealthDashboard({ code }: { code: string }) {
 }
 
 function Metric({ label, value, method }: { label: string; value: string; method: string }) {
-  return <article className="card p-5"><p className="text-xs font-bold uppercase tracking-wider text-ink/50">{label}</p><p className="mt-3 text-2xl font-black">{value}</p><p className="mt-3 text-xs leading-5 text-ink/55">{method}</p></article>;
+  return <article className="card interactive-card border-t-4 border-t-teal p-5"><p className="text-xs font-bold uppercase tracking-wider text-ink/50">{label}</p><p className="mt-3 text-2xl font-black text-[#073f35]">{value}</p><p className="mt-3 text-xs leading-5 text-ink/55">{method}</p></article>;
 }
 
 function Empty() {
