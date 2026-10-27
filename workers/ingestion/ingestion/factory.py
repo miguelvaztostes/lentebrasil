@@ -36,6 +36,7 @@ from ingestion.adapters.health import (
 )
 from ingestion.adapters.horizontal import IbgeBoundaryAdapter, IbgePamAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
+from ingestion.adapters.ibge_munic import IbgeMunicAdapter
 from ingestion.adapters.sectors import (
     IbgePibAdapter,
     NovoCagedAdapter,
@@ -102,6 +103,12 @@ def build_adapter(
     )
     codes = [item.ibge_code for item in municipalities]
     today = datetime.now(UTC).date()
+    if source.startswith("ibge_munic_"):
+        return IbgeMunicAdapter(
+            raw_data_dir=raw_data_dir,
+            municipalities=set(codes),
+            profile=source.removeprefix("ibge_munic_"),
+        )
     parsed_start = (
         date.fromisoformat(start_date) if isinstance(start_date, str) else start_date
     )

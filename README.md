@@ -31,7 +31,8 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   preservando supressões e distinguindo previsão de transferência de execução financeira; a
   página `/educacao` oferece seleção municipal e atalhos de comparação por escopo compatível.
 - Economia e trabalho com PIB/VAB municipal SIDRA e fluxo mensal do Novo CAGED por seção CNAE;
-  infraestrutura com frota registrada SENATRAN, sem atribuir índices nacionais a municípios.
+  infraestrutura com frota registrada SENATRAN e agricultura com cinco métricas da PAM/IBGE
+  por produto, sem atribuir índices nacionais a municípios.
 - Pipeline multicípio para IBGE, Siconfi e CNES, com dimensão oficial de 27 UFs e 5.571
   municípios, crosswalks explícitos e histórico cadastral.
 - Jobs persistidos no PostgreSQL com lock, checkpoint, retomada, retry e backfill por janela.
@@ -235,6 +236,11 @@ docker compose build web
 ```
 
 A construção da imagem `web` executa o typecheck e o build de produção do Next.js. A suíte completa também roda automaticamente no GitHub Actions.
+
+O perfil demonstrativo de Ribeirão Preto também inclui recortes oficiais das edições 2020, 2021,
+2023 e 2024 da MUNIC/IBGE. Eles cobrem governo digital, governança, cultura, participação social,
+meio ambiente e riscos, assistência social e estrutura municipal de segurança, sempre com a
+edição, a variável e a resposta original rastreáveis.
 
 O teste de integração do repositório exige `TEST_DATABASE_URL`; a CI aponta essa variável para PostgreSQL 16 e executa a migração antes do `pytest`.
 

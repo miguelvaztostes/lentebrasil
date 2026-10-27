@@ -376,6 +376,7 @@ export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<
 export function formatValue(value: string | number | null, unit: string): string {
   if (value === null || value === undefined) return "Não disponível";
   const numeric = Number(value);
+  if (unit === "sim/não") return numeric === 1 ? "Sim" : numeric === 0 ? "Não" : "Não disponível";
   if (unit === "BRL nominal") {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",

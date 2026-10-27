@@ -15,6 +15,7 @@ from ingestion.adapters.health import (
 )
 from ingestion.adapters.horizontal import IbgeBoundaryAdapter, IbgePamAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
+from ingestion.adapters.ibge_munic import IbgeMunicAdapter
 from ingestion.adapters.sectors import (
     IbgePibAdapter,
     NovoCagedAdapter,
@@ -56,6 +57,14 @@ ADAPTERS = {
     "senatran_fleet": SenatranFleetAdapter,
     "ibge_pam": IbgePamAdapter,
     "ibge_boundaries": IbgeBoundaryAdapter,
+    "ibge_munic_digital": IbgeMunicAdapter,
+    "ibge_munic_governance": IbgeMunicAdapter,
+    "ibge_munic_culture": IbgeMunicAdapter,
+    "ibge_munic_participation": IbgeMunicAdapter,
+    "ibge_munic_environment": IbgeMunicAdapter,
+    "ibge_munic_risks": IbgeMunicAdapter,
+    "ibge_munic_social": IbgeMunicAdapter,
+    "ibge_munic_security": IbgeMunicAdapter,
 }
 
 __all__ = [
@@ -66,6 +75,7 @@ __all__ = [
     "CnesServicesAdapter",
     "FndePnaeAdapter",
     "IbgeBoundaryAdapter",
+    "IbgeMunicAdapter",
     "IbgePamAdapter",
     "IbgePibAdapter",
     "IbgePopulationAdapter",

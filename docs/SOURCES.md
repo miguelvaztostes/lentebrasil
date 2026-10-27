@@ -52,6 +52,7 @@ Auditoria realizada em 09/10/2026 a partir deste ambiente. `confirmed` significa
 | INEP / IDEB 2005–2025 | `confirmed` | `https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip` | ZIP/XLSX e notas oficiais | HTTP 200; pacote municipal 2025 e cabeçalhos da planilha validados em 21/10/2026. Supressões são preservadas. |
 | INEP / Saeb 2023 | `confirmed` | `https://download.inep.gov.br/saeb/resultados/planilha_de_resultados_2023.rar` | RAR/XLSB oficial; licença específica a confirmar | Artefato de 8.413.247 bytes e planilha municipal com 69.053 linhas validados em 21/10/2026. O conector publica somente médias agregadas e preserva supressões. |
 | FNDE / PNAE 2024 | `confirmed` | página oficial de repasses por entidade executora e planilha 2024 | XLSX oficial; termos específicos do recurso a confirmar | Planilha de previsão com 26.300 linhas validada em 21/10/2026. O conector não apresenta os valores como pagamentos ou execução. |
+| IBGE / MUNIC 2020, 2021, 2023 e 2024 | `confirmed` | `https://ftp.ibge.gov.br/Perfil_Municipios/` | XLSX oficial; dados públicos com atribuição ao IBGE | Bases completas municipais verificadas em 27/10/2026. O recorte de Ribeirão Preto publica 31 respostas lógicas de sete temas, preservando edição, variável, resposta original e hash. |
 | Ministério da Saúde / CNES estabelecimentos | `confirmed` | `https://dadosabertos.saude.gov.br/dataset/cnes-cadastro-nacional-de-estabelecimentos-de-saude` e `https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip` | ZIP/CSV, delimitador `;`, bytes Latin-1/Windows-1252 observados; licença do portal a confirmar por recurso | HTTP 200; `Last-Modified: 09/10/2026`, 56.460.257 bytes compactados. O CSV tem 4.350 linhas para código municipal CNES `354340`. O pipeline persiste apenas agregados e hash, não nomes/telefones/e-mails. |
 | Ministério da Saúde / SIM 2024 | `confirmed` | `https://dadosabertos.saude.gov.br/dataset/sim` e `https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SIM/csv/DO24OPEN_csv.zip` | ZIP/CSV Latin-1; dados abertos anonimizados, com atribuição | Artefato de 98.076.266 bytes e SHA-256 `13db250c90908e85d1ef9fb9cd7caa08583fb1912108b0f3260605aca0e9b787`. Conector agrega óbitos não fetais por residência antes de persistir e suprime células 1–4. Três municípios reconciliados em `HEALTH_SOURCES.md`. |
 | Ministério da Saúde / Hospitais e Leitos 2026 | `confirmed` | `https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos` e ZIP oficial anual | ZIP/CSV CP1252; CC BY-ND 3.0 informada pelo portal | Competência 202609, 4.914.199 bytes e SHA-256 `9e36112332b486a265890ad5327e0c7ba86a5d4ed000ece455f12838739d9157`. Contatos e endereços são descartados; capacidade cadastrada não é disponibilidade real. |
@@ -87,9 +88,31 @@ A auditoria dos 165 IDs e as decisões dos setores restantes estão em
 municipais IBGE foram homologadas e publicadas; as demais fontes verificadas continuam visíveis
 com bloqueio explícito, sem serem apresentadas como cobertura existente.
 
+Em 27/10/2026, o conector PAM foi ampliado no mesmo recurso oficial SIDRA 5457 para as variáveis
+8331, 216, 214, 112 e 215. Para Ribeirão Preto, o dry-run e a carga aceitaram 430 linhas
+(86 produtos × 5 métricas), sem rejeições. Área, quantidade, rendimento e valor mantêm unidades
+próprias e não são somados entre si.
+
+Na mesma data, quatro edições da Pesquisa de Informações Básicas Municipais (MUNIC/IBGE) foram
+homologadas por arquivo XLSX oficial: 2020, 2021, 2023 e 2024. O recorte publicado é somente
+Ribeirão Preto e preserva a variável e a resposta textual original em `scope`. Foram publicados
+31 indicadores em oito conjuntos: governo digital, governança, cultura, participação social,
+gestão ambiental, riscos, assistência social e estrutura municipal de segurança pública. A edição
+é o período de referência; respostas declaradas de existência não medem qualidade ou desempenho.
+
 ## Fontes efetivamente implementadas no MVP
 
 - `ibge_population`: população residente estimada, pessoas, periodicidade anual.
+- `ibge_pam_production`: área plantada/destinada, área colhida, quantidade, rendimento médio e
+  valor da produção por produto municipal, PAM 2024.
+- `ibge_munic_2020_environment` e `ibge_munic_2020_risk_management`: gestão ambiental e
+  ocorrências/instrumentos de risco declarados na MUNIC 2020.
+- `ibge_munic_2021_culture` e `ibge_munic_2021_participation`: política/equipamentos culturais e
+  participação social no plano de cultura, MUNIC 2021.
+- `ibge_munic_2023_social_assistance` e `ibge_munic_2023_public_security`: instrumentos
+  municipais de assistência social e segurança pública, MUNIC 2023.
+- `ibge_munic_2024_digital_government` e `ibge_munic_2024_governance`: estrutura de TIC,
+  desenvolvimento de software e controle interno, MUNIC 2024.
 - `siconfi_rreo`: receita realizada e fases independentes da despesa, BRL nominal, exercício/6º bimestre por padrão.
 - `cnes_establishments`: contagens agregadas de cadastros do CNES, sem dados pessoais ou identificadores de estabelecimentos na base analítica.
 - `inep_censo_escolar`: escolas e matrículas agregadas por etapa, Censo Escolar 2024.

@@ -173,7 +173,7 @@ SENATRAN a data de referência. Série nacional como IPCA ou Selic nunca recebe 
 
 | Tabela | Grão | Regra pública |
 |---|---|---|
-| `agriculture_facts` | município/ano/produto/métrica/revisão | PAM 5457, quantidade produzida; valor ausente ou sigiloso é `NULL`, não zero. |
+| `agriculture_facts` | município/ano/produto/métrica/revisão | PAM 5457: área plantada/destinada, área colhida, quantidade, rendimento médio e valor da produção; cada unidade é preservada e valor ausente ou sigiloso é `NULL`, não zero. |
 | `geospatial_assets` | tipo geográfico/código/qualidade/revisão | GeoJSON original, bbox e CRS EPSG:4674; nenhuma estatística é inferida pela geometria. |
 | `export_jobs` | solicitante hash/domínio/formato/filtros | Estado, contagem, bytes, hash, expiração e lock; identidade bruta e URL arbitrária não são armazenadas. |
 
@@ -181,6 +181,19 @@ SENATRAN a data de referência. Série nacional como IPCA ou Selic nunca recebe 
 `integrated_not_published`, `under_review`, `restricted`, `portal_only` ou `unavailable`.
 `technical_owner` identifica responsabilidade interna e `last_checked_at` registra a última
 classificação, sem transformar automaticamente inventário candidato em fonte homologada.
+
+## Perfil municipal — MUNIC/IBGE
+
+Os indicadores `municipal_*`, `environment_council_*`, `*_last_four_years`,
+`culture_plan_civic_participation`, `public_library_exists`, `museum_exists`,
+`theater_exists` e `internal_control_online` usam a tabela comum `observations`. O grão é
+município/edição/variável. `scope_json` preserva `edition`, `variable`, `response` e
+`resource_version`; a interface converte apenas respostas iniciadas por “Sim”/“Não” em 1/0 para
+armazenamento exato e as reapresenta como “Sim”/“Não”. Quantidades permanecem `NUMERIC`.
+
+Uma resposta afirmativa indica existência declarada na edição da MUNIC. Não implica atividade,
+qualidade, suficiência, capacidade ou desempenho. Ocorrências de risco referem-se expressamente
+aos quatro anos anteriores à edição 2020; não são tratadas como eventos de 2020.
 
 ## Governança e contribuições
 

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from lente_api.models import (
     AgricultureFact,
@@ -27,6 +27,7 @@ class AgricultureRecord:
     year: int
     product_code: str
     product_name: str
+    metric_code: str
     value: Decimal | None
     unit: str
     availability_status: str
@@ -37,6 +38,13 @@ class IbgePamAdapter(SourceAdapter):
     source_name = "ibge_pam"
     dataset_code = "ibge_pam_production"
     base_url = "https://apisidra.ibge.gov.br/values/t/5457"
+    variables: ClassVar[dict[str, str]] = {
+        "8331": "planted_area",
+        "216": "harvested_area",
+        "214": "production_quantity",
+        "112": "average_yield",
+        "215": "production_value",
+    }
 
     def __init__(
         self, *, raw_data_dir: Path, municipalities: set[str], years: list[int]
@@ -48,7 +56,7 @@ class IbgePamAdapter(SourceAdapter):
     def discover(self) -> dict[str, Any]:
         return {
             "table": 5457,
-            "variable": "214",
+            "variables": self.variables,
             "classification": "782/all",
             "years": self.years,
             "geography": "municipality",
@@ -60,7 +68,8 @@ class IbgePamAdapter(SourceAdapter):
         for start in range(0, len(codes), 100):
             batch = ",".join(codes[start : start + 100])
             years = ",".join(str(year) for year in self.years)
-            url = f"{self.base_url}/n6/{batch}/v/214/p/{years}/c782/all?formato=json"
+            variables = ",".join(self.variables)
+            url = f"{self.base_url}/n6/{batch}/v/{variables}/p/{years}/c782/all?formato=json"
             response = self.get(url, timeout=90)
             payloads.append(
                 FetchedPayload(
@@ -70,7 +79,7 @@ class IbgePamAdapter(SourceAdapter):
                     original_format="json",
                     response_headers=self.selected_headers(response),
                     persist_raw=True,
-                    resource_version="sidra-5457-variable-214",
+                    resource_version="sidra-5457-agriculture-metrics",
                 )
             )
         return payloads
@@ -96,7 +105,7 @@ class IbgePamAdapter(SourceAdapter):
             if (
                 municipality not in self.municipalities
                 or year not in self.years
-                or str(row["D2C"]) != "214"
+                or str(row["D2C"]) not in self.variables
             ):
                 raise SourceValidationError(
                     "Linha PAM fora do recorte", code="domain_mismatch"
@@ -114,6 +123,7 @@ class IbgePamAdapter(SourceAdapter):
                     year=year,
                     product_code=str(row["D4C"]),
                     product_name=str(row["D4N"]),
+                    metric_code=self.variables[str(row["D2C"])],
                     value=value,
                     unit=str(row["MN"]),
                     availability_status="available"
@@ -125,7 +135,10 @@ class IbgePamAdapter(SourceAdapter):
         return records
 
     def validate(self, records: list[AgricultureRecord]) -> None:
-        keys = [(r.municipality_ibge_code, r.year, r.product_code) for r in records]
+        keys = [
+            (r.municipality_ibge_code, r.year, r.product_code, r.metric_code)
+            for r in records
+        ]
         if not records:
             raise SourceValidationError("PAM sem linhas", code="empty_dataset")
         if len(keys) != len(set(keys)):
@@ -147,7 +160,12 @@ class IbgePamAdapter(SourceAdapter):
         self, db: Session, records: list[AgricultureRecord], snapshot: SourceSnapshot
     ) -> None:
         for record in records:
-            key = f"{record.municipality_ibge_code}:{record.year}:{record.product_code}:214"
+            variable = next(
+                code
+                for code, metric in self.variables.items()
+                if metric == record.metric_code
+            )
+            key = f"{record.municipality_ibge_code}:{record.year}:{record.product_code}:{variable}"
             previous = db.scalar(
                 select(AgricultureFact)
                 .where(
@@ -162,6 +180,7 @@ class IbgePamAdapter(SourceAdapter):
                 and previous.value == record.value
                 and previous.availability_status == record.availability_status
                 and previous.product_name == record.product_name
+                and previous.unit == record.unit
             ):
                 continue
             db.add(
@@ -173,7 +192,7 @@ class IbgePamAdapter(SourceAdapter):
                     reference_year=record.year,
                     product_code=record.product_code,
                     product_name=record.product_name,
-                    metric_code="production_quantity",
+                    metric_code=record.metric_code,
                     value=record.value,
                     unit=record.unit,
                     availability_status=record.availability_status,

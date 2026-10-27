@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DataCard } from "./DataCard";
 import { ErrorState, LoadingState } from "./LoadingState";
 import { StatusBadge } from "./StatusBadge";
+import { SectorIcon } from "./SectorIcon";
 import { fetchJson, type MunicipalitySummary } from "@/lib/api";
 
 const sectorContent: Record<string, { label: string; description: string; accent: string }> = {
@@ -108,12 +109,14 @@ export function MunicipalityProfile({ code }: { code: string }) {
                   <span className="text-xs font-black tabular-nums text-ink/30">{String(index + 1).padStart(2, "0")}</span>
                   <StatusBadge status={published ? "published" : "discovered"} />
                 </div>
-                <h3 className="mt-7 text-xl font-black tracking-tight">{content.label}</h3>
+                <div className="mt-7 flex items-center gap-3">
+                  <span className="rounded-xl bg-ink/[0.045] p-2.5 text-[#073f35] transition duration-300 group-hover:scale-110 group-hover:text-teal"><SectorIcon slug={sector.slug} className="h-6 w-6" /></span>
+                  <h3 className="text-xl font-black tracking-tight">{content.label}</h3>
+                </div>
                 <p className="mt-2 min-h-10 text-sm leading-5 text-ink/55">{content.description}</p>
                 <div className="mt-6 flex items-end justify-between gap-3 border-t border-ink/10 pt-5">
                   <div>
-                    <p className="text-3xl font-black text-[#073f35]">{sector.published_datasets}</p>
-                    <p className="text-xs text-ink/50">conjunto{sector.published_datasets === 1 ? "" : "s"} publicado{sector.published_datasets === 1 ? "" : "s"}</p>
+                    {published ? <><p className="text-3xl font-black text-[#073f35]">{sector.published_datasets}</p><p className="text-xs text-ink/50">conjunto{sector.published_datasets === 1 ? "" : "s"} publicado{sector.published_datasets === 1 ? "" : "s"}</p></> : <><p className="text-sm font-black text-[#073f35]">Em implantação</p><p className="mt-1 text-xs text-ink/50">sem dado temático publicado</p></>}
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold">{sector.candidate_sources}</p>

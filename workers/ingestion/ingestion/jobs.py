@@ -51,6 +51,14 @@ def schedule_job(
         "ibge_pib": "ibge_pib_municipal",
         "novo_caged": "novo_caged_movements",
         "senatran_fleet": "senatran_fleet",
+        "ibge_munic_digital": "ibge_munic_2024_digital_government",
+        "ibge_munic_governance": "ibge_munic_2024_governance",
+        "ibge_munic_culture": "ibge_munic_2021_culture",
+        "ibge_munic_participation": "ibge_munic_2021_participation",
+        "ibge_munic_environment": "ibge_munic_2020_environment",
+        "ibge_munic_risks": "ibge_munic_2020_risk_management",
+        "ibge_munic_social": "ibge_munic_2023_social_assistance",
+        "ibge_munic_security": "ibge_munic_2023_public_security",
     }.get(source)
     if dataset_code is None:
         raise ValueError(f"Fonte desconhecida: {source}")

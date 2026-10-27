@@ -485,3 +485,38 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
 - PostgreSQL 16 descartável: migrações `0001 → 0019` e 71 testes aprovados. O frontend passou em
   teste de conteúdo, E2E das rotas (incluindo Educação, Desenvolvimento e Transparência),
   TypeScript, build de produção e auditoria sem vulnerabilidades de dependências de produção.
+
+## Navegação temática e ampliação agrícola — 27/10/2026
+
+- O destaque de Ribeirão Preto na página inicial passou de quatro números isolados para portas
+  temáticas com ícones; cada porta abre o painel existente, sem retirar séries ou proveniência.
+- Temas sem conjunto homologado deixaram de destacar “0” como se fosse valor observado. A tela
+  informa “em implantação”, preserva a matriz de fontes e oferece indicadores municipais apenas
+  como contexto explicitamente não temático.
+- A consulta oficial da PAM/SIDRA 5457 confirmou cinco variáveis: área plantada ou destinada
+  (8331), área colhida (216), quantidade produzida (214), rendimento médio (112) e valor da
+  produção (215). Dry-run e carga de Ribeirão Preto aceitaram 430 linhas, sem rejeições, checksum
+  `a4b7877661d5c86d77f79f9b31743243cc002f3dc86ca193ea1bca01c6110763`.
+- A API retornou 86 linhas por métrica. Havia valor publicado para 14 produtos em quantidade e
+  rendimento e para 15 em cada área e valor; as demais linhas continuaram `null`, nunca zero.
+- A lacuna temática foi retomada com as bases completas oficiais da MUNIC/IBGE. Dry-run e carga
+  real de oito conectores aceitaram 32 respostas e rejeitaram zero; uma resposta repetida
+  (`Mcul19`) é idempotente, resultando em 31 observações lógicas publicadas para Ribeirão Preto.
+- Checksum por edição: MUNIC 2020
+  `731105493695f2c9e3ef268dd016ed685ba369a048dade4ddfa5b370d3757e4a`; MUNIC 2021
+  `529270560e0cc545ab7037b37569af1cbfaab9557ea4a0d41ffce1412f955675`; MUNIC 2023
+  `5b0a43fff7c9455c5c8ea1faeeca1fc6a92f5756336e56dd64bfd98e4bfc98f6`; MUNIC 2024
+  `12446753ef95f46b37f916b3f83a34ca430f49afa32d7f1e56ed87f61c1ee2b5`.
+- A conferência manual comparou o código `3543402` e ao menos três campos de cada edição com o
+  XLSX: TIC/CPD/software (2024), plano/conselho/fundo de cultura (2021), conselho/reuniões/fundo
+  ambiental (2020) e plano/conselho/fundo de assistência, além de conselho/plano/guarda de
+  segurança (2023). Os valores da API coincidiram com as planilhas.
+- O perfil passou de 8 para 15 temas com dados e de 20 para 28 conjuntos publicados. Ciência,
+  cultura, gestão pública, meio ambiente e riscos, participação, proteção social e segurança
+  agora exibem dados reais e links para o XLSX oficial. “Catálogos e descoberta” e “Dados locais
+  de Ribeirão Preto” continuam áreas de fontes, não temas estatísticos; seguem sem falsa
+  publicação até que um recurso local exportável seja homologado.
+- PostgreSQL 16 descartável: migrações `0001 → 0020` e ciclo `0020 → 0019 → 0020` aprovados;
+  suíte completa com `TEST_DATABASE_URL`: 74 testes aprovados. O teste de conteúdo do frontend e
+  o build Next.js/typecheck passaram. O lint/formato direcionado aos arquivos alterados passou;
+  a verificação global ainda acusa dívida de formatação preexistente em arquivos fora desta etapa.

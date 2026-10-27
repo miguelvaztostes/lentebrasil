@@ -27,7 +27,7 @@ inicial usa apenas metadados do inventário; não transforma uma URL candidata e
 
 | Tema | Evidência oficial verificada | Decisão |
 |---|---|---|
-| Agricultura | SIDRA/PAM tabela 5457, variável 214, ano 2024 | Conector `ibge_pam` publicado. Quantidade por produto/município, `Decimal`, ausência preservada. |
+| Agricultura | SIDRA/PAM tabela 5457, variáveis 8331, 216, 214, 112 e 215, ano 2024 | Conector `ibge_pam` publicado. Área plantada/destinada, área colhida, quantidade, rendimento médio e valor por produto/município, `Decimal`, unidade e ausência preservados. |
 | Território | API IBGE Malhas v3 em GeoJSON | Conector `ibge_boundaries` publicado com CRS EPSG:4674, bbox, hash e revisão. A geometria não produz indicador por interseção automaticamente. |
 | Eleições | TSE Resultados 2024 oferece CSV de votação por município/zona sob CC BY | `under_review`: arquivo nacional volumoso e schema eleitoral ainda precisam de homologação e reconciliação de códigos. |
 | Legislativo federal | Câmara respondeu na API v2/OpenAPI para proposições; Senado mantém catálogo próprio | `under_review`: dados são federais e não recebem código municipal. Assembleias permanecem separadas por provedor. |
@@ -57,6 +57,18 @@ O recorte controlado usa Ribeirão Preto (`3543402`), Campinas (`3509502`) e Sã
   `8e79a4980621fbee7474e3542d13221921f1871b67f93730a17e6824339a75d4`.
 
 A repetição das duas cargas manteve 258 fatos PAM e três malhas, todos na revisão 1.
+
+### Ampliação PAM para Ribeirão Preto — 27/10/2026
+
+O mesmo recurso oficial SIDRA 5457 foi consultado sem criar nova fonte nem alterar a estrutura
+de fatos. O dry-run e a carga publicada receberam 430 linhas (86 produtos × 5 métricas), sem
+rejeições, com checksum
+`a4b7877661d5c86d77f79f9b31743243cc002f3dc86ca193ea1bca01c6110763`.
+As 86 linhas de quantidade já existentes permaneceram idempotentes; as quatro métricas novas
+foram adicionadas com chave própria. Para cana-de-açúcar, a resposta oficial e a API local
+coincidiram em 37.104 ha plantados, 37.104 ha colhidos, 3.002.604 t, rendimento de
+80.924 kg/ha e valor de produção de R$ 405.352 mil. Somar métricas ou produtos distintos não é
+usado como total municipal.
 
 ## Exportação assíncrona
 

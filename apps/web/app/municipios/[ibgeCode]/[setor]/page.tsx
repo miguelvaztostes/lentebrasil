@@ -3,11 +3,16 @@ import { MunicipalitySector } from "@/components/MunicipalitySector";
 
 const sectorTitles: Record<string, string> = {
   "agropecuaria-e-rural": "Agropecuária e rural",
+  "catalogos-e-descoberta": "Catálogos e descoberta",
+  "ciencia-e-inovacao": "Ciência e inovação",
+  "cultura-e-turismo": "Cultura e turismo",
   "economia-e-trabalho": "Economia e trabalho",
   educacao: "Educação",
   "financas-publicas": "Finanças públicas",
+  "gestao-publica": "Gestão pública",
   "infraestrutura-e-cidades": "Infraestrutura e cidades",
   "meio-ambiente-e-riscos": "Meio ambiente e riscos",
+  "municipal-ribeirao-preto": "Dados locais de Ribeirão Preto",
   "participacao-e-democracia": "Participação e democracia",
   "protecao-social": "Proteção social",
   saude: "Saúde",

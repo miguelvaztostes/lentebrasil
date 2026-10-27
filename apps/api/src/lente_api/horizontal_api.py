@@ -201,8 +201,10 @@ def agriculture(
         "limit": limit,
         "offset": offset,
         "methodology": (
-            "Quantidade produzida da PAM/SIDRA 5457. Ausência ou sigilo permanece nulo; "
-            "período é ano civil da pesquisa e não estimativa mensal."
+            "Área plantada ou destinada à colheita, área colhida, quantidade produzida, "
+            "rendimento médio e valor da produção da PAM/SIDRA 5457. Cada métrica mantém "
+            "a unidade publicada pelo IBGE; ausência ou sigilo permanece nulo e o período "
+            "é o ano civil da pesquisa, não uma estimativa mensal."
         ),
     }
 
