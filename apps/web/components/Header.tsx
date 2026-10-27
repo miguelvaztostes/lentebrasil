@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 const primaryLinks = [
+  ["Início", "/"],
   ["Indicadores", "/indicadores"],
   ["Regiões", "/brasil"],
   ["Pesquisa", "/pesquisa"],

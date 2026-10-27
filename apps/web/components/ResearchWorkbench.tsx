@@ -79,6 +79,35 @@ const availabilityNames: Record<string, string> = {
   not_applicable: "Não se aplica",
 };
 
+const indicatorNames: Record<string, string> = {
+  "observation:population_estimated": "População estimada",
+  "observation:revenue_realized": "Receita realizada",
+  "observation:expense_committed": "Despesa empenhada",
+  "observation:expense_liquidated": "Despesa liquidada",
+  "observation:expense_paid": "Despesa paga",
+  "agriculture:production_quantity": "Quantidade produzida",
+  "economy:gdp_current_prices": "PIB municipal a preços correntes",
+  "economy:gross_value_added": "Valor adicionado bruto",
+  "economy:product_taxes_net_subsidies": "Impostos sobre produtos, líquidos de subsídios",
+  "education:ideb": "Ideb",
+  "education:saeb_mathematics": "Saeb — Matemática",
+  "education:enrollment_count": "Matrículas na educação básica",
+  "infrastructure:registered_fleet": "Frota de veículos registrada",
+  "health_epidemiology:sim_deaths_residence": "Óbitos por local de residência (SIM)",
+  "health_epidemiology:sinasc_live_births_residence": "Nascidos vivos por local de residência (Sinasc)",
+};
+
+function indicatorLabel(code: string, label: string): string {
+  if (indicatorNames[code]) return indicatorNames[code];
+  if (!label.includes("_")) return label;
+  const normalized = label.replaceAll("_", " ");
+  return normalized.charAt(0).toLocaleUpperCase("pt-BR") + normalized.slice(1);
+}
+
+function compactNumber(value: number): string {
+  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
 function scopeLabel(scope: ResearchPoint["scope"]): string {
   const labels = Object.entries(scope)
     .filter(([key, value]) => value !== null && value !== "" && (key.endsWith("_label") || !(`${key}_label` in scope)))
@@ -109,7 +138,7 @@ function ResearchChart({ points, unit }: { points: ResearchPoint[]; unit: string
         <LineChart data={chart} margin={{ top: 15, right: 20, left: 15, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1023331c" />
           <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} width={80} />
+          <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={(value) => compactNumber(Number(value))} />
           <Tooltip formatter={(value) => formatValue(value as number, unit)} />
           <Legend />
           {municipalities.map((name, index) => (
@@ -118,6 +147,24 @@ function ResearchChart({ points, unit }: { points: ResearchPoint[]; unit: string
         </LineChart>
       </ResponsiveContainer>
     </div>
+  );
+}
+
+function ComparisonSnapshot({ points, unit }: { points: ResearchPoint[]; unit: string }) {
+  const latest = new Map<string, ResearchPoint>();
+  for (const point of [...points].sort((left, right) => left.period_end.localeCompare(right.period_end))) {
+    latest.set(point.geo_id, point);
+  }
+  return (
+    <section aria-label="Último valor por município" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {[...latest.values()].map((point, index) => (
+        <article key={point.geo_id} className="card interactive-card min-w-0 overflow-hidden border-t-4 p-5" style={{ borderTopColor: COLORS[index % COLORS.length] }}>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ink/50">{point.geo_name}/{point.state}</p>
+          <p className="mt-3 break-words text-[clamp(1.55rem,2.4vw,2.35rem)] font-black leading-tight text-[#073f35] [overflow-wrap:anywhere]">{formatValue(point.value, unit)}</p>
+          <p className="mt-2 text-xs text-ink/50">Última referência no recorte: {periodLabel(point)}</p>
+        </article>
+      ))}
+    </section>
   );
 }
 
@@ -173,7 +220,7 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
   const [savedUrl, setSavedUrl] = useState("");
   const [exportStatus, setExportStatus] = useState("");
   const [municipalitySearch, setMunicipalitySearch] = useState("");
-  const indicator = searchParams.get("indicador") ?? "health:production_quantity";
+  const indicator = searchParams.get("indicador") ?? (compareMode ? "education:ideb" : "health:production_quantity");
   const geoIds = (searchParams.get("municipios") ?? DEFAULT_GEOS).split(",").filter(Boolean).slice(0, 8);
   const startYear = searchParams.get("inicio") ?? "";
   const endYear = searchParams.get("fim") ?? "";
@@ -188,12 +235,23 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController(); setLoading(true); setError("");
+    const controller = new AbortController(); setSeries(null); setLoading(true); setError("");
     const params = new URLSearchParams({ indicator, geo_ids: geoIds.join(","), limit: "1000" });
     if (startYear) params.set("start_year", startYear); if (endYear) params.set("end_year", endYear); if (scopeKey) params.set("scope_key", scopeKey);
     fetchJson<ResearchSeries>(`/research/series?${params}`, controller.signal).then(setSeries).catch((reason: Error) => reason.name !== "AbortError" && setError(reason.message)).finally(() => setLoading(false));
     return () => controller.abort();
   }, [indicator, geoIds.join(","), startYear, endYear, scopeKey]);
+
+  useEffect(() => {
+    if (!compareMode || scopeKey || !series || series.scopes.length <= 1) return;
+    const preferred = series.scopes.find((item) => item.scope.network === "municipal" && ["fundamental_early", "fundamental_year_5", "all_basic"].includes(String(item.scope.stage)))
+      ?? series.scopes.find((item) => item.scope.network === "municipal")
+      ?? [...series.scopes].sort((left, right) => right.rows - left.rows)[0];
+    if (!preferred) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("escopo", preferred.scope_key);
+    router.replace(`/comparar?${params}`);
+  }, [compareMode, scopeKey, series, router, searchParams]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget); const params = new URLSearchParams();
@@ -211,6 +269,7 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
     const needle = municipalitySearch.trim().toLocaleLowerCase("pt-BR");
     return needle && !geoIds.includes(item.ibge_code) && `${item.name} ${item.state} ${item.ibge_code}`.toLocaleLowerCase("pt-BR").includes(needle);
   }).slice(0, 20);
+  const selectableIndicators = dictionary?.items.filter((item) => !compareMode || (item.published && item.comparable && item.row_count > 0)) ?? [];
 
   function updateMunicipalities(next: string[]) {
     const params = new URLSearchParams(searchParams.toString());
@@ -243,11 +302,17 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
 
   return (
     <div className="grid gap-8">
-      {dictionary && <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(dictionary.domains).map(([domain, totals]) => <div className="card p-4" key={domain}><p className="text-sm font-extrabold">{domainNames[domain] ?? domain}</p><p className="mt-1 text-2xl font-black">{totals.rows.toLocaleString("pt-BR")}</p><p className="text-xs text-ink/55">linhas · {totals.published}/{totals.indicators} indicadores publicados</p></div>)}</section>}
+      {dictionary && !compareMode && <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(dictionary.domains).map(([domain, totals]) => <div className="card p-4" key={domain}><p className="text-sm font-extrabold">{domainNames[domain] ?? domain}</p><p className="mt-1 text-2xl font-black">{totals.rows.toLocaleString("pt-BR")}</p><p className="text-xs text-ink/55">linhas · {totals.published}/{totals.indicators} indicadores publicados</p></div>)}</section>}
+      {compareMode && <section className="rounded-[1.5rem] border border-teal/20 bg-teal/5 p-5"><p className="text-sm font-bold text-[#087875]">Comparações rápidas</p><div className="mt-3 flex flex-wrap gap-2">{[
+        ["Ideb", "education:ideb"],
+        ["Matrículas", "education:enrollment_count"],
+        ["Saeb — Matemática", "education:saeb_mathematics"],
+        ["PIB municipal", "economy:gdp_current_prices"],
+      ].map(([label, code]) => <Link key={code} href={`/comparar?indicador=${encodeURIComponent(code)}&municipios=${geoIds.join(",")}`} className={`rounded-full px-4 py-2 text-sm font-bold transition ${indicator === code ? "bg-[#073f35] text-white shadow-md" : "border border-ink/15 bg-white hover:-translate-y-0.5 hover:border-teal hover:text-teal"}`}>{label}</Link>)}</div></section>}
       <form onSubmit={submit} className="card grid gap-5 p-6 lg:grid-cols-2">
         <label className="text-sm font-bold">Indicador
           <select name="indicador" value={indicator} onChange={(event) => router.push(`${compareMode ? "/comparar" : "/pesquisa"}?indicador=${encodeURIComponent(event.target.value)}&municipios=${geoIds.join(",")}`)} className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-4 py-3 font-normal">
-            {dictionary && Object.entries(Object.groupBy(dictionary.items, (item) => item.domain)).map(([domain, items]) => <optgroup key={domain} label={domainNames[domain] ?? domain}>{items?.map((item) => <option key={item.code} value={item.code}>{item.label} ({item.row_count.toLocaleString("pt-BR")}){item.published ? "" : " — sem linhas"}</option>)}</optgroup>)}
+            {dictionary && Object.entries(Object.groupBy(selectableIndicators, (item) => item.domain)).map(([domain, items]) => <optgroup key={domain} label={domainNames[domain] ?? domain}>{items?.map((item) => <option key={item.code} value={item.code}>{indicatorLabel(item.code, item.label)} ({item.row_count.toLocaleString("pt-BR")}){item.published ? "" : " — sem linhas"}</option>)}</optgroup>)}
           </select>
         </label>
         <fieldset>
@@ -267,7 +332,7 @@ export function ResearchWorkbench({ compareMode = false }: { compareMode?: boole
       {error && <ErrorState message={error} />}{loading && <LoadingState label="Consultando fatos, escopos e proveniência…" />}
       {!loading && series && <>
         <section className="card p-6"><p className="eyebrow">{domainNames[series.definition.domain] ?? series.definition.domain}</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-3xl font-black">{series.definition.label}</h2><p className="mt-2 text-sm text-ink/60">{series.count.toLocaleString("pt-BR")} linhas no recorte · {series.definition.unit} · {series.definition.periodicity}</p></div><div className="flex flex-wrap gap-2"><a className="button-secondary" href={`${API_BASE}/v1/research/export.csv?${exportParams}`}>CSV</a><a className="button-secondary" href={`${API_BASE}/v1/research/export.json?${exportParams}`}>JSON</a><button type="button" onClick={createParquet} className="button-secondary">Parquet</button></div></div>{exportStatus && <p className="mt-3 text-xs font-bold text-teal">{exportStatus}</p>}<p className="mt-5 text-sm leading-6"><strong>Método:</strong> {series.definition.methodology}</p><p className="mt-2 text-sm leading-6 text-ink/65"><strong>Limites:</strong> {series.definition.limitations}</p></section>
-        {series.definition.scope_required && !scopeKey && series.scopes.length > 1 ? <section className="rounded-2xl border border-gold/60 bg-gold/10 p-6"><h2 className="font-extrabold">Escolha um escopo antes de comparar ou desenhar a série</h2><p className="mt-2 text-sm">Existem {series.scopes.length} categorias diferentes. Somá-las ou colocá-las na mesma linha poderia duplicar ou distorcer o indicador.</p></section> : displayed.length ? <ResearchChart points={displayed} unit={series.definition.unit} /> : <section className="card p-6">Nenhuma linha publicada neste recorte. Indisponível não é zero.</section>}
+        {series.definition.scope_required && !scopeKey && series.scopes.length > 1 ? <section className="rounded-2xl border border-gold/60 bg-gold/10 p-6"><h2 className="font-extrabold">Escolha um escopo antes de comparar ou desenhar a série</h2><p className="mt-2 text-sm">Existem {series.scopes.length} categorias diferentes. Selecione uma opção no campo “Escopo comparável” acima; misturar categorias poderia duplicar ou distorcer o indicador.</p></section> : displayed.length ? <><ComparisonSnapshot points={displayed} unit={series.definition.unit} /><ResearchChart points={displayed} unit={series.definition.unit} /></> : <section className="card p-6">Nenhuma linha publicada neste recorte. Indisponível não é zero.</section>}
         <CoverageMap geoIds={geoIds} names={names} />
         <section className="overflow-hidden rounded-2xl border border-ink/10 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-ink text-white"><tr><th className="p-3">Território</th><th className="p-3">Período</th><th className="p-3">Escopo</th><th className="p-3">Valor</th><th className="p-3">Fonte</th><th className="p-3">Estado</th></tr></thead><tbody>{series.items.map((point, index) => <tr key={`${point.geo_id}-${point.period_start}-${point.scope_key}-${index}`} className="border-t border-ink/10 align-top"><td className="p-3 font-bold">{point.geo_name}/{point.state}</td><td className="whitespace-nowrap p-3">{periodLabel(point)}</td><td className="max-w-sm p-3 text-xs">{scopeLabel(point.scope)}</td><td className="whitespace-nowrap p-3 font-bold">{formatValue(point.value, point.unit)}</td><td className="p-3"><a href={point.source_url} target="_blank" rel="noreferrer" className="font-bold text-teal hover:underline">{point.provider}</a><span className="block text-xs text-ink/50">{point.dataset} · rev. {point.revision}</span></td><td className="p-3">{availabilityNames[point.availability_status] ?? point.availability_status.replaceAll("_", " ")}</td></tr>)}</tbody></table></div>{series.count > series.items.length && <p className="border-t border-ink/10 p-4 text-xs text-ink/60">Mostrando {series.items.length} de {series.count.toLocaleString("pt-BR")} linhas. Use CSV/JSON para até 10 mil linhas; exportações maiores usam o serviço assíncrono.</p>}</section>
       </>}
