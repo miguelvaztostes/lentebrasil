@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("public disclaimer and empty-data language remain visible", async () => {
+test("institutional identity and empty-data language remain visible", async () => {
   const [footer, dashboard, indicator, search, home, education, school, transparency, sectors, agriculture, openData, municipalitySector, research] = await Promise.all([
     readFile(new URL("../components/Footer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/Dashboard.tsx", import.meta.url), "utf8"),
@@ -18,7 +18,10 @@ test("public disclaimer and empty-data language remain visible", async () => {
     readFile(new URL("../components/MunicipalitySector.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/ResearchWorkbench.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(footer, /Observatório cívico independente/);
+  assert.match(footer, /Observatório de dados públicos municipais/);
+  assert.match(footer, /https:\/\/vazdeveloper\.com\.br\//);
+  assert.match(footer, /Origem, atualização e licença informadas/);
+  assert.doesNotMatch(footer, /2030|Não representa oficialmente/);
   assert.match(dashboard, /não há observações validadas/);
   assert.match(dashboard, /municipios\/\$\{encodeURIComponent\(municipalityCode\)\}\/summary/);
   assert.match(indicator, /municipality=\$\{encodeURIComponent\(municipalityCode\)\}/);

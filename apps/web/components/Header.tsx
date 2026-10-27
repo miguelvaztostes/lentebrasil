@@ -28,7 +28,7 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-[#fbfaf7]/92 shadow-[0_8px_30px_rgba(6,47,41,0.04)] backdrop-blur-xl">
       <div className="bg-[#073f35] text-white">
         <div className="container-page flex h-7 items-center justify-between gap-4 text-[10px] font-bold uppercase tracking-[0.14em] text-white/75">
-          <span>Observatório cívico de dados públicos</span>
+          <span>Observatório de dados públicos municipais</span>
           <nav aria-label="Navegação institucional" className="hidden items-center gap-5 sm:flex">
             {utilityLinks.map(([label, href]) => <Link key={label} href={href} className="transition hover:text-[#f2ca61]">{label}</Link>)}
           </nav>
