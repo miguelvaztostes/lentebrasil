@@ -13,7 +13,7 @@
     }
 
     handle /docs {
-        redir /api/docs
+        redir * /api/docs 308
     }
 
     handle {
