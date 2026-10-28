@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export function Footer() {
@@ -55,15 +56,15 @@ export function Footer() {
             target="_blank"
             rel="noreferrer"
             aria-label="Visitar o site da Vaz Developer"
-            className="group inline-flex w-fit items-center gap-3 rounded-xl transition hover:text-[#50c99b]"
+            className="group inline-flex w-fit rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#50c99b] focus-visible:ring-offset-4 focus-visible:ring-offset-[#06131f]"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-lg border border-[#50c99b]/35 bg-[#50c99b]/10 font-mono text-sm font-black text-[#50c99b] transition group-hover:-translate-y-0.5 group-hover:border-[#50c99b]">
-              {"</>"}
-            </span>
-            <span>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.17em] text-white/40">Tecnologia e desenvolvimento</span>
-              <span className="mt-0.5 block text-base font-extrabold">Vaz <span className="text-[#50c99b]">Developer</span> <span aria-hidden="true">↗</span></span>
-            </span>
+            <Image
+              src="/vaz-developer-logo.webp"
+              alt="Vaz Developer"
+              width={3168}
+              height={898}
+              className="h-auto w-[210px] opacity-90 transition duration-300 group-hover:-translate-y-0.5 group-hover:opacity-100 sm:w-[230px]"
+            />
           </a>
 
           <div className="text-xs leading-5 text-white/45 md:text-right">
