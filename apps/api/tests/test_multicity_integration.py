@@ -127,7 +127,6 @@ def test_national_selection_is_explicit_and_cannot_mix_geographic_scopes() -> No
                         ibge_code=code,
                         name=name,
                         state="SP",
-                        active=True,
                     )
                 )
         db.commit()

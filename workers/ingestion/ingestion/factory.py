@@ -73,7 +73,10 @@ def select_municipalities(
     elif uf:
         statement = statement.where(Municipality.state == uf.upper())
     elif national:
-        statement = statement.where(Municipality.active.is_(True))
+        # The municipal directory contains only the official IBGE units loaded by
+        # the geography bootstrap. Municipality intentionally has no parallel
+        # "active" flag; lifecycle is represented in the geography history.
+        pass
     else:
         statement = statement.where(Municipality.ibge_code == LEGACY_MUNICIPALITY)
     rows = list(db.scalars(statement.order_by(Municipality.ibge_code)))
