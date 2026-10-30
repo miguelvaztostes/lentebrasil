@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
+from ingestion.factory import select_municipalities
 from ingestion.geography import geography_payload_hash, sync_geographies
 from ingestion.jobs import claim_next_job, schedule_job
 from sqlalchemy import create_engine, delete, func, select
@@ -112,6 +113,38 @@ def test_geography_sync_creates_crosswalks_and_preserves_name_history() -> None:
         )
         assert [item.name for item in history] == ["Campinas", "Campinas (nome atualizado)"]
         assert history[0].effective_to == date(2026, 2, 1)
+
+
+@pytest.mark.integration
+def test_national_selection_is_explicit_and_cannot_mix_geographic_scopes() -> None:
+    engine = create_engine(_database_url())
+    with Session(engine) as db:
+        for code, (name, _) in MUNICIPALITIES.items():
+            municipality = db.get(Municipality, code)
+            if municipality is None:
+                db.add(
+                    Municipality(
+                        ibge_code=code,
+                        name=name,
+                        state="SP",
+                        active=True,
+                    )
+                )
+        db.commit()
+
+        national = select_municipalities(db, national=True)
+        selected_codes = {item.ibge_code for item in national}
+        assert set(MUNICIPALITIES) <= selected_codes
+        assert national == sorted(national, key=lambda item: item.ibge_code)
+
+        with pytest.raises(ValueError, match="apenas um recorte"):
+            select_municipalities(db, uf="SP", national=True)
+        with pytest.raises(ValueError, match="apenas um recorte"):
+            select_municipalities(
+                db,
+                municipality_codes=["3543402"],
+                national=True,
+            )
 
 
 @pytest.mark.integration

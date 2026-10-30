@@ -188,6 +188,16 @@ docs → migração/catálogo → API → adaptador IBGE → UI → Siconfi/CNES
 
 A busca territorial completa e as rotas públicas nacionais continuam reservadas para a etapa 2.
 
+### Extensão operacional nacional — 30/10/2026
+
+- O CLI aceita `--national` somente de forma explícita e mutuamente exclusiva com município/UF.
+- A carga combinada `all + national` é bloqueada; cada fonte precisa declarar período, limites e
+  estratégia compatível com seu volume.
+- O Siconfi nacional é decomposto em jobs unitários para respeitar o limite oficial e permitir
+  checkpoint, retomada e falha isolada por ente.
+- O padrão legado continua sendo Ribeirão Preto, evitando ampliar silenciosamente uma execução
+  operacional existente.
+
 ## Etapa 2 — catálogo público e busca territorial concluída em 21/10/2026
 
 - O portal passa a se chamar Lente Brasil; Lente Ribeirão permanece como visão territorial de

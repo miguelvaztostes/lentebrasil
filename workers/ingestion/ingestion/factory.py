@@ -59,13 +59,21 @@ LEGACY_MUNICIPALITY = "3543402"
 
 
 def select_municipalities(
-    db: Session, *, municipality_codes: list[str] | None = None, uf: str | None = None
+    db: Session,
+    *,
+    municipality_codes: list[str] | None = None,
+    uf: str | None = None,
+    national: bool = False,
 ) -> list[Municipality]:
+    if sum(bool(item) for item in (municipality_codes, uf, national)) > 1:
+        raise ValueError("Use apenas um recorte: municípios, UF ou cobertura nacional")
     statement = select(Municipality)
     if municipality_codes:
         statement = statement.where(Municipality.ibge_code.in_(municipality_codes))
     elif uf:
         statement = statement.where(Municipality.state == uf.upper())
+    elif national:
+        statement = statement.where(Municipality.active.is_(True))
     else:
         statement = statement.where(Municipality.ibge_code == LEGACY_MUNICIPALITY)
     rows = list(db.scalars(statement.order_by(Municipality.ibge_code)))
@@ -85,6 +93,7 @@ def build_adapter(
     raw_data_dir: Path,
     municipality_codes: list[str] | None = None,
     uf: str | None = None,
+    national: bool = False,
     start_year: int | None = None,
     end_year: int | None = None,
     periods: list[int] | None = None,
@@ -99,7 +108,10 @@ def build_adapter(
     update_mode: bool = True,
 ) -> Any:
     municipalities = select_municipalities(
-        db, municipality_codes=municipality_codes, uf=uf
+        db,
+        municipality_codes=municipality_codes,
+        uf=uf,
+        national=national,
     )
     codes = [item.ibge_code for item in municipalities]
     today = datetime.now(UTC).date()

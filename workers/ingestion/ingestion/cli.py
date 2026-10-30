@@ -29,6 +29,7 @@ def _parameters(
     *,
     municipalities: str | None,
     uf: str | None,
+    national: bool,
     start_year: int | None,
     end_year: int | None,
     periods: str,
@@ -45,6 +46,7 @@ def _parameters(
     return {
         "municipality_codes": _split(municipalities),
         "uf": uf,
+        "national": national,
         "start_year": start_year,
         "end_year": end_year,
         "periods": [int(item) for item in (_split(periods) or [])] or None,
@@ -92,6 +94,11 @@ def ingest(
     uf: str | None = typer.Option(
         None, help="Seleciona os municípios cadastrados de uma UF"
     ),
+    national: bool = typer.Option(
+        False,
+        "--national",
+        help="Seleciona todos os municípios ativos do diretório IBGE",
+    ),
     start_year: int | None = None,
     end_year: int | None = None,
     periods: str = "",
@@ -113,6 +120,10 @@ def ingest(
         False, help="Usa data de publicação em vez de atualização"
     ),
 ) -> None:
+    if source == "all" and national:
+        raise typer.BadParameter(
+            "A carga nacional exige uma fonte por execução; --source all é bloqueado"
+        )
     selected = list(ADAPTERS) if source == "all" else [source]
     unknown = [item for item in selected if item not in ADAPTERS]
     if unknown:
@@ -120,6 +131,7 @@ def ingest(
     parameters = _parameters(
         municipalities=municipalities,
         uf=uf,
+        national=national,
         start_year=start_year,
         end_year=end_year,
         periods=periods,
@@ -173,6 +185,11 @@ def schedule(
     ),
     municipalities: str | None = None,
     uf: str | None = None,
+    national: bool = typer.Option(
+        False,
+        "--national",
+        help="Agenda a fonte para todos os municípios ativos",
+    ),
     start_year: int | None = None,
     end_year: int | None = None,
     periods: str = "",
@@ -191,6 +208,7 @@ def schedule(
     parameters = _parameters(
         municipalities=municipalities,
         uf=uf,
+        national=national,
         start_year=start_year,
         end_year=end_year,
         periods=periods,
@@ -211,13 +229,15 @@ def schedule(
                 db,
                 municipality_codes=parameters.pop("municipality_codes"),
                 uf=parameters.pop("uf"),
+                national=parameters.pop("national"),
             )
             first = start_year if start_year is not None else 2022
             last = end_year if end_year is not None else 2025
+            selected_periods = parameters["periods"] or [6]
             jobs = []
             for municipality in selected:
                 for year in range(first, last + 1):
-                    for period in parameters["periods"]:
+                    for period in selected_periods:
                         for annex in parameters["annexes"]:
                             unit = {
                                 **parameters,
@@ -256,6 +276,7 @@ def health(
         help="Fonte registrada ou all; fontes fiscais podem exigir parâmetros explícitos",
     ),
     municipalities: str | None = None,
+    national: bool = typer.Option(False, "--national"),
 ) -> None:
     selected = list(ADAPTERS) if source == "all" else [source]
     results = {}
@@ -268,6 +289,7 @@ def health(
                 db,
                 raw_data_dir=Path(get_settings().raw_data_dir),
                 municipality_codes=_split(municipalities),
+                national=national,
             )
             results[item] = adapter.health()
     typer.echo(json.dumps(results, ensure_ascii=False, default=str, indent=2))

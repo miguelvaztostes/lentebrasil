@@ -121,6 +121,21 @@ Para backfill, prefira `ingestion.cli schedule` com município/UF, anos e limite
 O comando antigo sem município continua usando Ribeirão Preto por compatibilidade. O Siconfi
 recusa janelas acima de `--max-requests` e respeita uma requisição por segundo.
 
+Para cobertura nacional, a seleção precisa ser explícita e uma fonte deve ser executada por vez:
+
+```bash
+docker compose run --rm ingestion python -m ingestion.cli ingest \
+  --source ibge --national --start-year 2025 --end-year 2026 --batch-size 100
+docker compose run --rm ingestion python -m ingestion.cli schedule \
+  --source siconfi --national --start-year 2025 --end-year 2025 --periods 6
+```
+
+`--national` não pode ser combinado com `--municipalities` ou `--uf`. A combinação
+`--source all --national` é bloqueada para impedir que arquivos volumosos e milhares de chamadas
+externas sejam disparados sem uma janela controlada. Siconfi é decomposto em jobs por
+município/exercício/período; fontes de arquivo nacional devem ser processadas uma vez e filtradas
+durante o streaming.
+
 Verificar disponibilidade dos endpoints:
 
 ```bash
