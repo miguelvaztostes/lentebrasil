@@ -49,6 +49,61 @@ def test_ibge_pib_preserves_nominal_units_and_unavailable(tmp_path: Path) -> Non
     assert records[1].availability_status == "unavailable"
 
 
+def test_ibge_pib_batches_national_requests_to_bounded_urls(tmp_path: Path) -> None:
+    municipalities = {f"{code:07d}" for code in range(1, 206)}
+    adapter = IbgePibAdapter(
+        raw_data_dir=tmp_path,
+        municipalities=municipalities,
+        years=[2023],
+        batch_size=100,
+    )
+
+    batches = [
+        sorted(municipalities)[start : start + adapter.batch_size]
+        for start in range(0, len(municipalities), adapter.batch_size)
+    ]
+
+    assert [len(batch) for batch in batches] == [100, 100, 5]
+    assert all(len(adapter._url(batch)) < 2_000 for batch in batches)
+
+
+def test_ibge_pib_marks_historical_municipality_absence_as_unavailable(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        {
+            "V": "Valor",
+            "D1C": "Município",
+            "D2C": "Variável",
+            "D3C": "Ano",
+            "MN": "Unidade",
+        },
+        {
+            "V": "10",
+            "D1C": "3543402",
+            "D2C": "37",
+            "D3C": "2023",
+            "MN": "Mil Reais",
+        },
+    ]
+    adapter = IbgePibAdapter(
+        raw_data_dir=tmp_path,
+        municipalities={"3543402", "5101837"},
+        years=[2023],
+    )
+    adapter._validation_batches.append({"3543402", "5101837"})
+
+    records = adapter.parse(
+        payload(json.dumps(rows).encode(), url=adapter.base_url, original_format="json")
+    )
+    adapter.validate(records)
+
+    missing = next(item for item in records if item.municipality_ibge_code == "5101837")
+    assert missing.value is None
+    assert missing.availability_status == "unavailable"
+    assert adapter.quality_warnings[0]["code"] == "historical_geography_unavailable"
+
+
 def test_novo_caged_streams_and_reconciles_sections(tmp_path: Path) -> None:
     text = (
         "competênciamov;município;seção;saldomovimentação\n"

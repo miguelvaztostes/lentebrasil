@@ -79,7 +79,7 @@ def ingest(
             "tcesp_expenses, "
             "siconfi_rgf, siconfi_dca, sim_mortality, cnes_beds, sinasc_births, "
             "siops_health_expenses, sih_production, sia_production, cnes_services, "
-            "ans_beneficiaries ou all"
+            "ans_beneficiaries, tse ou all"
             ", ibge_pib, novo_caged, senatran_fleet, ibge_pam, ibge_boundaries, "
             "ibge_munic_digital, ibge_munic_governance, ibge_munic_culture, "
             "ibge_munic_participation, ibge_munic_environment, ibge_munic_risks, "

@@ -37,6 +37,8 @@ from ingestion.adapters.health import (
 from ingestion.adapters.horizontal import IbgeBoundaryAdapter, IbgePamAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.ibge_munic import IbgeMunicAdapter
+from ingestion.adapters.politics import TseCandidacyAdapter
+from ingestion.adapters.politics import normalize_name as normalize_tse_name
 from ingestion.adapters.sectors import (
     IbgePibAdapter,
     NovoCagedAdapter,
@@ -130,6 +132,16 @@ def build_adapter(
     parsed_end = date.fromisoformat(end_date) if isinstance(end_date, str) else end_date
     window_end = parsed_end or today
     window_start = parsed_start or (window_end - timedelta(days=1))
+    if source == "tse":
+        if start_year not in {None, 2024} or end_year not in {None, 2024}:
+            raise ValueError("Apenas a eleição municipal TSE 2024 foi homologada")
+        return TseCandidacyAdapter(
+            raw_data_dir=raw_data_dir,
+            municipality_crosswalk={
+                (item.state, normalize_tse_name(item.name)): item.ibge_code
+                for item in municipalities
+            },
+        )
     if source == "ibge_pib":
         first = start_year if start_year is not None else 2021
         last = end_year if end_year is not None else 2023
@@ -137,6 +149,7 @@ def build_adapter(
             raw_data_dir=raw_data_dir,
             municipalities=set(codes),
             years=list(range(first, last + 1)),
+            batch_size=batch_size,
         )
     if source == "ibge_pam":
         first = start_year if start_year is not None else 2024

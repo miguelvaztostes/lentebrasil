@@ -195,6 +195,21 @@ Uma resposta afirmativa indica existência declarada na edição da MUNIC. Não 
 qualidade, suficiência, capacidade ou desempenho. Ocorrências de risco referem-se expressamente
 aos quatro anos anteriores à edição 2020; não são tratadas como eventos de 2020.
 
+## Representação política e obras públicas
+
+| Tabela | Grão | Regra pública |
+|---|---|---|
+| `political_people` | sistema/chave eleitoral/revisão | Identidade funcional da fonte. No TSE 2024, `SQ_CANDIDATO` permanece restrito à eleição e não é usado para inferir identidade entre pleitos. |
+| `political_candidacies` | candidatura/eleição/cargo/território/revisão | Situação e resultado oficiais; ausência de votos no recurso integrado é `NULL`, nunca zero. |
+| `political_mandates` | pessoa/cargo/mandato/território/revisão | Criado somente para resultados eleitos; cargo municipal não representa mandato estadual ou federal. |
+| `declared_asset_summaries` | candidatura/categoria do bem/revisão | Quantidade e valor total por categoria. Descrição livre, endereço e outros detalhes potencialmente identificáveis não são persistidos. |
+| `legislative_proposals`, `proposal_authors`, `political_expenses` | proposição/autor ou pessoa/período/categoria | Estrutura versionada para Câmara, Senado e casas locais; permanece vazia até o conector oficial correspondente ser validado. |
+| `political_scores` | pessoa/grupo comparável/janela/metodologia | Nota descritiva entre 0 e 100. Ranking só é publicável com cobertura mínima de 80% e pares do mesmo cargo e período; não é recomendação eleitoral. |
+| `public_works` | obra/território/atualização/revisão | Valores estimado, contratado e pago são fases distintas e nunca são somados. Cadastro de obra não prova início ou conclusão. |
+
+CPF, e-mail, data de nascimento, título eleitoral e descrições livres de bens do TSE não entram no
+modelo. Toda linha publicável aponta para `source_snapshot` e documento oficial de origem.
+
 ## Governança e contribuições
 
 - `organizations`: organização candidata, domínio, HMAC do identificador legal e evidência/status

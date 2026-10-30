@@ -9,6 +9,7 @@ const primaryLinks = [
   ["Início", "/"],
   ["Indicadores", "/indicadores"],
   ["Regiões", "/brasil"],
+  ["Políticos", "/politicos"],
   ["Pesquisa", "/pesquisa"],
   ["Comparar", "/comparar"],
   ["Fontes", "/fontes"],

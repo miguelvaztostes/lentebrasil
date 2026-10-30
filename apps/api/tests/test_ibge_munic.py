@@ -49,3 +49,22 @@ def test_munic_normalizes_binary_numeric_and_missing_values() -> None:
     assert _normalize_value("Não")[0] == 0
     assert _normalize_value(42)[0] == 42
     assert _normalize_value("-") == (None, "unavailable")
+
+
+def test_munic_marks_municipality_absent_from_historical_edition() -> None:
+    adapter = IbgeMunicAdapter(
+        raw_data_dir=Path("/tmp"),
+        municipalities={"3543402", "5101837"},
+        profile="digital",
+    )
+
+    records = adapter.parse(_workbook_payload())
+    adapter.validate(records)
+
+    unavailable = [record for record in records if record.municipality_ibge_code == "5101837"]
+    assert len(unavailable) == 4
+    assert all(record.availability_status == "unavailable" for record in unavailable)
+    assert all(
+        record.scope["absence_reason"] == "not_present_in_source_edition" for record in unavailable
+    )
+    assert adapter.quality_warnings[0]["code"] == "historical_geography_unavailable"

@@ -28,6 +28,7 @@ Não é um sistema oficial da Prefeitura, da Câmara, do Instituto Ribeirão 203
   gastos SIOPS, mortalidade SIM e nascidos vivos SINASC, mantendo microdados fora da base
   publicada e distinguindo cadastro, capacidade, produção, gasto e eventos vitais.
 - Educação municipal com Censo Escolar 2024, Ideb 2025, Saeb 2023 e previsão PNAE 2024,
+- representação política municipal com candidaturas, eleitos e bens agregados do TSE, sem retenção de campos pessoais desnecessários,
   preservando supressões e distinguindo previsão de transferência de execução financeira; a
   página `/educacao` oferece seleção municipal e atalhos de comparação por escopo compatível.
 - Economia e trabalho com PIB/VAB municipal SIDRA e fluxo mensal do Novo CAGED por seção CNAE;
@@ -125,7 +126,7 @@ Para cobertura nacional, a seleção precisa ser explícita e uma fonte deve ser
 
 ```bash
 docker compose run --rm ingestion python -m ingestion.cli ingest \
-  --source ibge --national --start-year 2025 --end-year 2026 --batch-size 100
+  --source ibge --national --start-year 2024 --end-year 2025 --batch-size 100
 docker compose run --rm ingestion python -m ingestion.cli schedule \
   --source siconfi --national --start-year 2025 --end-year 2025 --periods 6
 ```
@@ -135,6 +136,9 @@ docker compose run --rm ingestion python -m ingestion.cli schedule \
 externas sejam disparados sem uma janela controlada. Siconfi é decomposto em jobs por
 município/exercício/período; fontes de arquivo nacional devem ser processadas uma vez e filtradas
 durante o streaming.
+
+O estado comprovado por tema, as limitações temporais e o procedimento de promoção estão em
+[`docs/NATIONAL_COVERAGE.md`](docs/NATIONAL_COVERAGE.md).
 
 Verificar disponibilidade dos endpoints:
 

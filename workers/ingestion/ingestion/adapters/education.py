@@ -15,8 +15,18 @@ from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 import httpx
+from lente_api.models import (
+    Dataset,
+    EducationEnrollment,
+    EducationMetric,
+    PublicationRelease,
+    School,
+    SchoolVersion,
+    SourceSnapshot,
+)
 from openpyxl import load_workbook
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, update
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.orm import Session
 from tenacity import (
     retry,
@@ -31,20 +41,11 @@ from ingestion.adapters.base import (
     SourceAdapter,
     SourceValidationError,
 )
-from lente_api.models import (
-    Dataset,
-    EducationEnrollment,
-    EducationMetric,
-    PublicationRelease,
-    School,
-    SchoolVersion,
-    SourceSnapshot,
-)
 
-CENSO_2024_URL = "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip"
-IDEB_2025_URL = (
-    "https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip"
+CENSO_2024_URL = (
+    "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip"
 )
+IDEB_2025_URL = "https://download.inep.gov.br/ideb/resultados/divulgacao_anos_iniciais_municipios_2025.zip"
 ALLOWED_HOST = "download.inep.gov.br"
 MISSING = {"", "-", "...", "NA", "N/A", "NULL"}
 
@@ -108,7 +109,9 @@ class _InepDownloadAdapter(SourceAdapter):
     @staticmethod
     def _tls_context() -> ssl.SSLContext:
         context = ssl.create_default_context()
-        intermediate = Path(__file__).parents[1] / "certs" / "rnp-icpedu-gr46-ov-tls-ca-2025.pem"
+        intermediate = (
+            Path(__file__).parents[1] / "certs" / "rnp-icpedu-gr46-ov-tls-ca-2025.pem"
+        )
         context.load_verify_locations(cafile=intermediate)
         return context
 
@@ -192,7 +195,9 @@ class _InepDownloadAdapter(SourceAdapter):
                             )
                         stream.write(chunk)
             if target.read_bytes()[:2] != b"PK":
-                raise SourceValidationError("Recurso baixado não é ZIP", code="unexpected_format")
+                raise SourceValidationError(
+                    "Recurso baixado não é ZIP", code="unexpected_format"
+                )
             self._validate_zip(target)
             return [
                 FetchedPayload(
@@ -202,7 +207,9 @@ class _InepDownloadAdapter(SourceAdapter):
                     fetched_at=fetched_at,
                     original_format="zip",
                     response_headers=headers,
-                    published_at=self.header_datetime_from_headers(headers, "last-modified"),
+                    published_at=self.header_datetime_from_headers(
+                        headers, "last-modified"
+                    ),
                 )
             ]
         except Exception:
@@ -210,25 +217,38 @@ class _InepDownloadAdapter(SourceAdapter):
             raise
 
     @staticmethod
-    def header_datetime_from_headers(headers: dict[str, str], name: str) -> datetime | None:
+    def header_datetime_from_headers(
+        headers: dict[str, str], name: str
+    ) -> datetime | None:
         from dateutil.parser import parse
 
-        raw = next((value for key, value in headers.items() if key.lower() == name), None)
+        raw = next(
+            (value for key, value in headers.items() if key.lower() == name), None
+        )
         return parse(raw).astimezone(UTC) if raw else None
 
     @staticmethod
     def _validate_zip(path: Path) -> None:
         with zipfile.ZipFile(path) as archive:
             members = archive.infolist()
-            if len(members) > 100 or sum(item.file_size for item in members) > 2 * 1024**3:
-                raise SourceValidationError("ZIP excede limites seguros", code="unsafe_archive")
+            if (
+                len(members) > 100
+                or sum(item.file_size for item in members) > 2 * 1024**3
+            ):
+                raise SourceValidationError(
+                    "ZIP excede limites seguros", code="unsafe_archive"
+                )
             if any(
                 Path(item.filename).is_absolute() or ".." in Path(item.filename).parts
                 for item in members
             ):
-                raise SourceValidationError("Caminho inseguro no ZIP", code="unsafe_archive")
+                raise SourceValidationError(
+                    "Caminho inseguro no ZIP", code="unsafe_archive"
+                )
 
-    def _release(self, db: Session, snapshot: SourceSnapshot, year: int) -> PublicationRelease:
+    def _release(
+        self, db: Session, snapshot: SourceSnapshot, year: int
+    ) -> PublicationRelease:
         release_key = f"{year}-{snapshot.sha256[:16]}"
         release = db.scalar(
             select(PublicationRelease).where(
@@ -298,11 +318,14 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
 
     def parse(self, payload: FetchedPayload) -> list[SchoolRecord]:
         records: list[SchoolRecord] = []
-        with zipfile.ZipFile(payload.file_path or io.BytesIO(payload.read_bytes())) as archive:
+        with zipfile.ZipFile(
+            payload.file_path or io.BytesIO(payload.read_bytes())
+        ) as archive:
             names = [
                 name
                 for name in archive.namelist()
-                if name.lower().endswith(".csv") and "microdados_ed_basica" in name.lower()
+                if name.lower().endswith(".csv")
+                and "microdados_ed_basica" in name.lower()
             ]
             if len(names) != 1:
                 raise SourceValidationError(
@@ -344,7 +367,9 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
                             name=str(row["NO_ENTIDADE"]).strip(),
                             state=str(row["SG_UF"]).strip(),
                             dependency_code=str(row["TP_DEPENDENCIA"]).strip(),
-                            operating_status=str(row["TP_SITUACAO_FUNCIONAMENTO"]).strip(),
+                            operating_status=str(
+                                row["TP_SITUACAO_FUNCIONAMENTO"]
+                            ).strip(),
                             location_type={"1": "urban", "2": "rural"}.get(
                                 str(row["TP_LOCALIZACAO"]).strip()
                             ),
@@ -353,7 +378,8 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
                                 for name, field in self.infrastructure_fields.items()
                             },
                             enrollments={
-                                name: _safe_int(row[field]) for name, field in self.stages.items()
+                                name: _safe_int(row[field])
+                                for name, field in self.stages.items()
                             },
                         )
                     )
@@ -361,75 +387,108 @@ class InepCensoEscolarAdapter(_InepDownloadAdapter):
 
     def validate(self, records: list[SchoolRecord]) -> None:
         if not records:
-            raise SourceValidationError("Censo sem escolas para o recorte", code="empty_selection")
+            raise SourceValidationError(
+                "Censo sem escolas para o recorte", code="empty_selection"
+            )
         if any(item.year != self.year or len(item.inep_code) != 8 for item in records):
             raise SourceValidationError(
                 "Ano ou código Inep inválido", code="censo_invalid_identity"
             )
         if len({item.inep_code for item in records}) != len(records):
-            raise SourceValidationError("Escola duplicada no Censo", code="censo_duplicate_school")
+            raise SourceValidationError(
+                "Escola duplicada no Censo", code="censo_duplicate_school"
+            )
 
-    def upsert(self, db: Session, records: list[SchoolRecord], snapshot: SourceSnapshot) -> None:
+    def upsert(
+        self, db: Session, records: list[SchoolRecord], snapshot: SourceSnapshot
+    ) -> None:
         release = self._release(db, snapshot, self.year)
-        if db.scalar(
-            select(SchoolVersion.id).where(SchoolVersion.release_id == release.id).limit(1)
-        ):
+        existing_codes = set(
+            db.scalars(
+                select(SchoolVersion.school_inep_code).where(
+                    SchoolVersion.release_id == release.id
+                )
+            )
+        )
+        records = [
+            record for record in records if record.inep_code not in existing_codes
+        ]
+        if not records:
             return
-        now = datetime.now(UTC)
-        existing = {
-            item.inep_code: item
-            for item in db.scalars(
-                select(School).where(School.inep_code.in_([record.inep_code for record in records]))
-            )
+        previous_municipalities = set(
+            (release.provenance or {}).get("selected_municipalities", [])
+        )
+        release.provenance = {
+            **(release.provenance or {}),
+            "selected_municipalities": sorted(
+                previous_municipalities | self.selected_municipalities
+            ),
         }
-        for record in records:
-            school = existing.get(record.inep_code)
-            if school is None:
-                school = School(
-                    inep_code=record.inep_code,
-                    municipality_ibge_code=record.municipality_code,
-                    created_at=now,
-                    updated_at=now,
-                )
-                db.add(school)
-            else:
-                school.municipality_ibge_code = record.municipality_code
-                school.updated_at = now
-        # The explicit flush guarantees parent rows exist before the bulk fact inserts.
-        db.flush()
-        for record in records:
-            db.add(
-                SchoolVersion(
-                    id=uuid.uuid4(),
-                    school_inep_code=record.inep_code,
-                    municipality_ibge_code=record.municipality_code,
-                    census_year=record.year,
-                    name=record.name,
-                    state=record.state,
-                    dependency_code=record.dependency_code,
-                    operating_status=record.operating_status,
-                    location_type=record.location_type,
-                    infrastructure=record.infrastructure,
-                    snapshot_id=snapshot.id,
-                    release_id=release.id,
+        now = datetime.now(UTC)
+        chunk_size = 5_000
+        for start in range(0, len(records), chunk_size):
+            batch = records[start : start + chunk_size]
+            school_rows = [
+                {
+                    "inep_code": record.inep_code,
+                    "municipality_ibge_code": record.municipality_code,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                for record in batch
+            ]
+            school_insert = postgres_insert(School).values(school_rows)
+            db.execute(
+                school_insert.on_conflict_do_update(
+                    index_elements=[School.inep_code],
+                    set_={
+                        "municipality_ibge_code": school_insert.excluded.municipality_ibge_code,
+                        "updated_at": school_insert.excluded.updated_at,
+                    },
                 )
             )
-            for stage, count in record.enrollments.items():
-                db.add(
-                    EducationEnrollment(
-                        id=uuid.uuid4(),
-                        school_inep_code=record.inep_code,
-                        municipality_ibge_code=record.municipality_code,
-                        census_year=record.year,
-                        stage_code=stage,
-                        dependency_code=record.dependency_code,
-                        enrollment_count=count,
-                        availability_status="available" if count is not None else "unavailable",
-                        snapshot_id=snapshot.id,
-                        release_id=release.id,
-                    )
-                )
-        db.flush()
+
+            db.execute(
+                insert(SchoolVersion),
+                [
+                    {
+                        "id": uuid.uuid4(),
+                        "school_inep_code": record.inep_code,
+                        "municipality_ibge_code": record.municipality_code,
+                        "census_year": record.year,
+                        "name": record.name,
+                        "state": record.state,
+                        "dependency_code": record.dependency_code,
+                        "operating_status": record.operating_status,
+                        "location_type": record.location_type,
+                        "infrastructure": record.infrastructure,
+                        "snapshot_id": snapshot.id,
+                        "release_id": release.id,
+                    }
+                    for record in batch
+                ],
+            )
+
+            enrollment_rows = [
+                {
+                    "id": uuid.uuid4(),
+                    "school_inep_code": record.inep_code,
+                    "municipality_ibge_code": record.municipality_code,
+                    "census_year": record.year,
+                    "stage_code": stage,
+                    "dependency_code": record.dependency_code,
+                    "enrollment_count": count,
+                    "availability_status": "available"
+                    if count is not None
+                    else "unavailable",
+                    "snapshot_id": snapshot.id,
+                    "release_id": release.id,
+                }
+                for record in batch
+                for stage, count in record.enrollments.items()
+            ]
+            db.execute(insert(EducationEnrollment), enrollment_rows)
+            db.flush()
 
 
 class InepIdebAdapter(_InepDownloadAdapter):
@@ -452,21 +511,28 @@ class InepIdebAdapter(_InepDownloadAdapter):
 
     def parse(self, payload: FetchedPayload) -> list[MetricRecord]:
         records: list[MetricRecord] = []
-        with zipfile.ZipFile(payload.file_path or io.BytesIO(payload.read_bytes())) as archive:
-            names = [name for name in archive.namelist() if name.lower().endswith(".xlsx")]
+        with zipfile.ZipFile(
+            payload.file_path or io.BytesIO(payload.read_bytes())
+        ) as archive:
+            names = [
+                name for name in archive.namelist() if name.lower().endswith(".xlsx")
+            ]
             if len(names) != 1:
                 raise SourceValidationError(
                     "Planilha XLSX do Ideb não identificada", code="ideb_schema_changed"
                 )
             with archive.open(names[0]) as workbook_stream:
-                workbook = load_workbook(workbook_stream, read_only=True, data_only=True)
+                workbook = load_workbook(
+                    workbook_stream, read_only=True, data_only=True
+                )
                 sheet = workbook.active
                 rows = sheet.iter_rows(values_only=True)
                 headers: list[str] | None = None
                 for index, values in enumerate(rows, start=1):
                     if index == 10:
                         headers = [
-                            str(value).strip() if value is not None else "" for value in values
+                            str(value).strip() if value is not None else ""
+                            for value in values
                         ]
                         required = {"CO_MUNICIPIO", "REDE", *self.metrics.values()}
                         if not required.issubset(headers):
@@ -502,33 +568,73 @@ class InepIdebAdapter(_InepDownloadAdapter):
 
     def validate(self, records: list[MetricRecord]) -> None:
         if not records:
-            raise SourceValidationError("Ideb sem linhas para o recorte", code="empty_selection")
-        if any(
-            item.year != self.year or item.value is not None and item.value < 0 for item in records
-        ):
-            raise SourceValidationError("Valor ou ano inválido no Ideb", code="ideb_invalid_value")
-
-    def upsert(self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot) -> None:
-        release = self._release(db, snapshot, self.year)
-        if db.scalar(
-            select(EducationMetric.id).where(EducationMetric.release_id == release.id).limit(1)
-        ):
-            return
-        for record in records:
-            db.add(
-                EducationMetric(
-                    id=uuid.uuid4(),
-                    municipality_ibge_code=record.municipality_code,
-                    reference_year=record.year,
-                    metric_code=record.metric_code,
-                    network_code=record.network_code,
-                    stage_code=record.stage_code,
-                    value=record.value,
-                    availability_status=record.availability_status,
-                    snapshot_id=snapshot.id,
-                    release_id=release.id,
-                )
+            raise SourceValidationError(
+                "Ideb sem linhas para o recorte", code="empty_selection"
             )
+        if any(
+            item.year != self.year or item.value is not None and item.value < 0
+            for item in records
+        ):
+            raise SourceValidationError(
+                "Valor ou ano inválido no Ideb", code="ideb_invalid_value"
+            )
+
+    def upsert(
+        self, db: Session, records: list[MetricRecord], snapshot: SourceSnapshot
+    ) -> None:
+        release = self._release(db, snapshot, self.year)
+        existing_keys = set(
+            db.execute(
+                select(
+                    EducationMetric.municipality_ibge_code,
+                    EducationMetric.reference_year,
+                    EducationMetric.metric_code,
+                    EducationMetric.network_code,
+                    EducationMetric.stage_code,
+                ).where(EducationMetric.release_id == release.id)
+            ).all()
+        )
+        records = [
+            record
+            for record in records
+            if (
+                record.municipality_code,
+                record.year,
+                record.metric_code,
+                record.network_code,
+                record.stage_code,
+            )
+            not in existing_keys
+        ]
+        if not records:
+            return
+        previous_municipalities = set(
+            (release.provenance or {}).get("selected_municipalities", [])
+        )
+        release.provenance = {
+            **(release.provenance or {}),
+            "selected_municipalities": sorted(
+                previous_municipalities | self.selected_municipalities
+            ),
+        }
+        db.execute(
+            insert(EducationMetric),
+            [
+                {
+                    "id": uuid.uuid4(),
+                    "municipality_ibge_code": record.municipality_code,
+                    "reference_year": record.year,
+                    "metric_code": record.metric_code,
+                    "network_code": record.network_code,
+                    "stage_code": record.stage_code,
+                    "value": record.value,
+                    "availability_status": record.availability_status,
+                    "snapshot_id": snapshot.id,
+                    "release_id": release.id,
+                }
+                for record in records
+            ],
+        )
         db.flush()
 
 

@@ -520,3 +520,23 @@ frontend permanece fora desta etapa; Ribeirão segue como padrão compatível.
   suíte completa com `TEST_DATABASE_URL`: 74 testes aprovados. O teste de conteúdo do frontend e
   o build Next.js/typecheck passaram. O lint/formato direcionado aos arquivos alterados passou;
   a verificação global ainda acusa dívida de formatação preexistente em arquivos fora desta etapa.
+
+## Validação local de cobertura nacional e representação — 30/10/2026
+
+- Censo Escolar 2024: 215.545 escolas e 1.939.905 linhas agregadas de matrícula, com 5.570
+  municípios presentes no recurso. A recuperação do PostgreSQL após reinício concluiu sem perda;
+  a execução oficial permaneceu com estado `success` e zero rejeições.
+- MUNIC/IBGE cultura: 33.426 observações e 5.571 municípios. Portanto, cultura tem carga local
+  nacional; a interface não deve sinalizá-la como vazia quando o município possui observações.
+- CNES agregado: carga local nacional aceitou 16.713 observações, zero rejeições e checksum
+  `46fd539d5426e28480ad7cea52dfd5dc86316fe9409a2bb4ffca8cd63ab5031a`, cobrindo os 5.571
+  municípios do diretório. Leitos, serviços, SIM, SINASC, SIA, SIH, SIOPS e ANS continuam com
+  carga controlada de três municípios e não são apresentados como cobertura nacional.
+- TSE 2024: os dois ZIPs oficiais aceitaram 1.227 registros no recorte de Ribeirão Preto,
+  materializando 422 candidaturas, 23 mandatos eleitos e 805 agregados por categoria patrimonial.
+  A segunda execução manteve as mesmas contagens, comprovando idempotência. Nenhum campo pessoal
+  desnecessário ou descrição livre de bem foi persistido.
+- Migração `0021` aprovada em banco descartável nos sentidos `0020 → 0021 → 0020 → 0021`.
+  API: 62 testes aprovados e 19 testes dependentes de ambiente ignorados; frontend: build de
+  produção e typecheck aprovados, teste de conteúdo aprovado e um E2E dependente de servidor
+  ignorado. A promoção para a VM não foi executada.

@@ -94,32 +94,48 @@ class IbgePibAdapter(SourceAdapter):
     }
 
     def __init__(
-        self, *, raw_data_dir: Path, municipalities: set[str], years: list[int]
+        self,
+        *,
+        raw_data_dir: Path,
+        municipalities: set[str],
+        years: list[int],
+        batch_size: int = 100,
     ):
         super().__init__(raw_data_dir=raw_data_dir)
         self.municipalities = municipalities
         self.years = sorted(set(years))
+        self.batch_size = min(max(batch_size, 1), 100)
+        self._validation_batches: list[set[str]] = []
+        self._missing_by_batch: list[set[str]] = []
 
     def discover(self) -> dict[str, Any]:
         return {"table": 5938, "variables": sorted(self.variables), "years": self.years}
 
-    def fetch(self) -> list[FetchedPayload]:
-        codes = ",".join(sorted(self.municipalities))
+    def _url(self, municipality_codes: list[str]) -> str:
+        codes = ",".join(municipality_codes)
         variables = ",".join(self.variables)
         years = ",".join(str(year) for year in self.years)
-        url = f"{self.base_url}/n6/{codes}/v/{variables}/p/{years}?formato=json"
-        response = self.get(url, timeout=90)
-        return [
-            FetchedPayload(
-                content=response.content,
-                url=str(response.url),
-                fetched_at=datetime.now(UTC),
-                original_format="json",
-                response_headers=self.selected_headers(response),
-                persist_raw=True,
-                resource_version="sidra-5938",
+        return f"{self.base_url}/n6/{codes}/v/{variables}/p/{years}?formato=json"
+
+    def fetch(self) -> list[FetchedPayload]:
+        payloads: list[FetchedPayload] = []
+        codes = sorted(self.municipalities)
+        for start in range(0, len(codes), self.batch_size):
+            batch = codes[start : start + self.batch_size]
+            response = self.get(self._url(batch), timeout=90)
+            self._validation_batches.append(set(batch))
+            payloads.append(
+                FetchedPayload(
+                    content=response.content,
+                    url=str(response.url),
+                    fetched_at=datetime.now(UTC),
+                    original_format="json",
+                    response_headers=self.selected_headers(response),
+                    persist_raw=True,
+                    resource_version="sidra-5938",
+                )
             )
-        ]
+        return payloads
 
     def parse(self, payload: FetchedPayload) -> list[EconomyRecord]:
         try:
@@ -175,6 +191,29 @@ class IbgePibAdapter(SourceAdapter):
                     payload.url,
                 )
             )
+        expected = (
+            self._validation_batches[0]
+            if self._validation_batches
+            else self.municipalities
+        )
+        returned = {record.municipality_ibge_code for record in records}
+        missing = expected - returned
+        self._missing_by_batch.append(missing)
+        for municipality in sorted(missing):
+            for year in self.years:
+                records.append(
+                    EconomyRecord(
+                        municipality_ibge_code=municipality,
+                        year=year,
+                        metric_code="gdp_current_prices",
+                        activity_code=None,
+                        activity_label=None,
+                        value=None,
+                        unit="BRL nominal",
+                        availability_status="unavailable",
+                        source_url=payload.url,
+                    )
+                )
         return records
 
     def validate(self, records: list[EconomyRecord]) -> None:
@@ -186,11 +225,39 @@ class IbgePibAdapter(SourceAdapter):
         ]
         if len(keys) != len(set(keys)):
             raise SourceValidationError("PIB municipal duplicado", code="duplicate_key")
-        for municipality in self.municipalities:
+        expected_municipalities = (
+            self._validation_batches.pop(0)
+            if self._validation_batches
+            else self.municipalities
+        )
+        missing_municipalities = (
+            self._missing_by_batch.pop(0) if self._missing_by_batch else set()
+        )
+        if missing_municipalities:
+            maximum_missing = max(1, len(expected_municipalities) // 100)
+            if len(missing_municipalities) > maximum_missing:
+                raise SourceValidationError(
+                    "PIB municipal perdeu cobertura no lote",
+                    code="missing_municipality",
+                    details={
+                        "expected": len(expected_municipalities),
+                        "missing": sorted(missing_municipalities),
+                    },
+                )
+            self.quality_warnings.append(
+                {
+                    "code": "historical_geography_unavailable",
+                    "details": {
+                        "municipalities": sorted(missing_municipalities),
+                        "years": self.years,
+                        "reason": "Município não retornado na edição oficial consultada.",
+                    },
+                }
+            )
+        for municipality in expected_municipalities:
             if not any(
                 r.municipality_ibge_code == municipality
                 and r.metric_code == "gdp_current_prices"
-                and r.value is not None
                 for r in records
             ):
                 raise SourceValidationError(
@@ -202,27 +269,25 @@ class IbgePibAdapter(SourceAdapter):
     def upsert(
         self, db: Session, records: list[EconomyRecord], snapshot: SourceSnapshot
     ) -> None:
-        activities: dict[str, EconomicActivity] = {}
-        for record in records:
-            if record.activity_code and record.activity_code not in activities:
-                activity = db.scalar(
-                    select(EconomicActivity).where(
-                        EconomicActivity.classification_system == "IBGE_PIB_SECTOR",
-                        EconomicActivity.code == record.activity_code,
-                    )
+        activity_codes = {
+            record.activity_code for record in records if record.activity_code
+        }
+        activities = {
+            activity.code: activity
+            for activity in db.scalars(
+                select(EconomicActivity).where(
+                    EconomicActivity.classification_system == "IBGE_PIB_SECTOR",
+                    EconomicActivity.code.in_(activity_codes),
                 )
-                if activity is None:
-                    activity = EconomicActivity(
-                        id=uuid.uuid4(),
-                        classification_system="IBGE_PIB_SECTOR",
-                        code=record.activity_code,
-                        label=record.activity_label or record.activity_code,
-                        level="broad_sector",
-                    )
-                    db.add(activity)
-                    db.flush()
-                activities[record.activity_code] = activity
-            key = ":".join(
+            )
+        }
+        record_keys = {
+            (
+                record.municipality_ibge_code,
+                record.year,
+                record.metric_code,
+                record.activity_code,
+            ): ":".join(
                 (
                     record.municipality_ibge_code,
                     str(record.year),
@@ -230,15 +295,39 @@ class IbgePibAdapter(SourceAdapter):
                     record.activity_code or "NONE",
                 )
             )
-            previous = db.scalar(
-                select(EconomyFact)
-                .where(
-                    EconomyFact.source_system == "sidra_pib",
-                    EconomyFact.source_key == key,
-                )
-                .order_by(desc(EconomyFact.revision))
-                .limit(1)
+            for record in records
+        }
+        previous_by_key: dict[str, EconomyFact] = {}
+        for previous in db.scalars(
+            select(EconomyFact)
+            .where(
+                EconomyFact.source_system == "sidra_pib",
+                EconomyFact.source_key.in_(list(record_keys.values())),
             )
+            .order_by(EconomyFact.source_key, desc(EconomyFact.revision))
+        ):
+            previous_by_key.setdefault(previous.source_key, previous)
+        for record in records:
+            if record.activity_code and record.activity_code not in activities:
+                activity = EconomicActivity(
+                    id=uuid.uuid4(),
+                    classification_system="IBGE_PIB_SECTOR",
+                    code=record.activity_code,
+                    label=record.activity_label or record.activity_code,
+                    level="broad_sector",
+                )
+                db.add(activity)
+                db.flush()
+                activities[record.activity_code] = activity
+            key = record_keys[
+                (
+                    record.municipality_ibge_code,
+                    record.year,
+                    record.metric_code,
+                    record.activity_code,
+                )
+            ]
+            previous = previous_by_key.get(key)
             if (
                 previous
                 and previous.value == record.value

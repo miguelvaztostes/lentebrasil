@@ -16,10 +16,12 @@ from lente_api.exports_api import router as exports_router
 from lente_api.governance_api import router as governance_router
 from lente_api.health_api import router as health_router
 from lente_api.horizontal_api import router as horizontal_router
+from lente_api.politics_api import router as politics_router
 from lente_api.research_api import router as research_router
 from lente_api.sectors_api import router as sectors_router
 from lente_api.settings import get_settings
 from lente_api.transparency_api import router as transparency_router
+from lente_api.works_api import router as works_router
 
 settings = get_settings()
 
@@ -50,8 +52,8 @@ app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description=(
-        "API pública do observatório independente Lente Brasil, com o Lente Ribeirão "
-        "como visão territorial. Cada observação inclui proveniência e referência temporal."
+        "API pública do observatório independente Lente Brasil. Cada observação "
+        "inclui proveniência, cobertura territorial e referência temporal."
     ),
     docs_url="/api/docs",
     redoc_url="/redoc",
@@ -93,9 +95,11 @@ app.include_router(exports_router)
 app.include_router(health_router)
 app.include_router(governance_router)
 app.include_router(horizontal_router)
+app.include_router(politics_router)
 app.include_router(research_router)
 app.include_router(sectors_router)
 app.include_router(transparency_router)
+app.include_router(works_router)
 app.include_router(router)
 
 

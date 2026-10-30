@@ -542,7 +542,7 @@ class Procurement(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     source_system: Mapped[str] = mapped_column(String(40), index=True)
-    source_key: Mapped[str] = mapped_column(String(180), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
     municipality_ibge_code: Mapped[str | None] = mapped_column(
         ForeignKey("municipalities.ibge_code"), index=True
     )
@@ -591,7 +591,7 @@ class Contract(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     source_system: Mapped[str] = mapped_column(String(40), index=True)
-    source_key: Mapped[str] = mapped_column(String(180), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
     procurement_source_key: Mapped[str | None] = mapped_column(String(180), index=True)
     municipality_ibge_code: Mapped[str | None] = mapped_column(
         ForeignKey("municipalities.ibge_code"), index=True
@@ -1301,3 +1301,241 @@ class QuarantinedUpload(Base):
     scan_details: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PoliticalPerson(Base):
+    __tablename__ = "political_people"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_political_person_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    full_name: Mapped[str] = mapped_column(String(260), index=True)
+    ballot_name: Mapped[str | None] = mapped_column(String(180), index=True)
+    slug: Mapped[str] = mapped_column(String(220), index=True)
+    photo_url: Mapped[str | None] = mapped_column(Text)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class PoliticalMandate(Base):
+    __tablename__ = "political_mandates"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_political_mandate_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    person_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("political_people.id"), index=True)
+    election_year: Mapped[int] = mapped_column(Integer, index=True)
+    office_code: Mapped[str] = mapped_column(String(80), index=True)
+    office_name: Mapped[str] = mapped_column(String(160))
+    government_level: Mapped[str] = mapped_column(String(30), index=True)
+    state: Mapped[str | None] = mapped_column(String(2), index=True)
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    party_acronym: Mapped[str | None] = mapped_column(String(30), index=True)
+    elected_status: Mapped[str] = mapped_column(String(100), index=True)
+    term_start: Mapped[date | None] = mapped_column(Date, index=True)
+    term_end: Mapped[date | None] = mapped_column(Date, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class PoliticalCandidacy(Base):
+    __tablename__ = "political_candidacies"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_political_candidacy_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    person_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("political_people.id"), index=True)
+    election_year: Mapped[int] = mapped_column(Integer, index=True)
+    election_type: Mapped[str] = mapped_column(String(120))
+    office_code: Mapped[str] = mapped_column(String(80), index=True)
+    office_name: Mapped[str] = mapped_column(String(160))
+    state: Mapped[str | None] = mapped_column(String(2), index=True)
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    ballot_number: Mapped[str | None] = mapped_column(String(20))
+    party_acronym: Mapped[str | None] = mapped_column(String(30), index=True)
+    registration_status: Mapped[str | None] = mapped_column(String(120), index=True)
+    election_result: Mapped[str | None] = mapped_column(String(120), index=True)
+    vote_count: Mapped[int | None] = mapped_column(Integer)
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class DeclaredAssetSummary(Base):
+    __tablename__ = "declared_asset_summaries"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_declared_asset_summary_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    candidacy_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("political_candidacies.id"), index=True
+    )
+    election_year: Mapped[int] = mapped_column(Integer, index=True)
+    asset_type_code: Mapped[str] = mapped_column(String(60), index=True)
+    asset_type_name: Mapped[str] = mapped_column(String(240))
+    asset_count: Mapped[int] = mapped_column(Integer)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(24, 6))
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class LegislativeProposal(Base):
+    __tablename__ = "legislative_proposals"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_legislative_proposal_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    chamber: Mapped[str] = mapped_column(String(60), index=True)
+    proposal_type: Mapped[str] = mapped_column(String(80), index=True)
+    number: Mapped[str] = mapped_column(String(40), index=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(500))
+    summary: Mapped[str | None] = mapped_column(Text)
+    themes: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str | None] = mapped_column(String(180), index=True)
+    presented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at_source: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class ProposalAuthor(Base):
+    __tablename__ = "proposal_authors"
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "person_id", "author_name", name="uq_proposal_author"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("legislative_proposals.id"), index=True
+    )
+    person_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("political_people.id"), index=True
+    )
+    author_name: Mapped[str] = mapped_column(String(260))
+    party_acronym: Mapped[str | None] = mapped_column(String(30))
+
+
+class PoliticalExpense(Base):
+    __tablename__ = "political_expenses"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system", "source_key", "revision", name="uq_political_expense_revision"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    person_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("political_people.id"), index=True)
+    chamber: Mapped[str] = mapped_column(String(60), index=True)
+    reference_year: Mapped[int] = mapped_column(Integer, index=True)
+    reference_month: Mapped[int | None] = mapped_column(Integer, index=True)
+    category: Mapped[str] = mapped_column(String(240), index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(24, 6))
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class PoliticalScore(Base):
+    __tablename__ = "political_scores"
+    __table_args__ = (
+        CheckConstraint("score >= 0 AND score <= 100", name="ck_political_score_range"),
+        CheckConstraint(
+            "coverage_ratio >= 0 AND coverage_ratio <= 1",
+            name="ck_political_score_coverage",
+        ),
+        UniqueConstraint(
+            "person_id",
+            "peer_group",
+            "reference_start",
+            "reference_end",
+            "methodology_version",
+            name="uq_political_score_window",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    person_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("political_people.id"), index=True)
+    peer_group: Mapped[str] = mapped_column(String(180), index=True)
+    reference_start: Mapped[date] = mapped_column(Date, index=True)
+    reference_end: Mapped[date] = mapped_column(Date, index=True)
+    methodology_version: Mapped[str] = mapped_column(String(60), index=True)
+    score: Mapped[Decimal] = mapped_column(Numeric(7, 4))
+    rank: Mapped[int | None] = mapped_column(Integer)
+    peer_count: Mapped[int | None] = mapped_column(Integer)
+    coverage_ratio: Mapped[Decimal] = mapped_column(Numeric(7, 6))
+    components: Mapped[dict] = mapped_column(JSON, default=dict)
+    caveats: Mapped[list] = mapped_column(JSON, default=list)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class PublicWork(Base):
+    __tablename__ = "public_works"
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_key", "revision", name="uq_public_work_revision"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str] = mapped_column(String(40), index=True)
+    source_key: Mapped[str] = mapped_column(String(240), index=True)
+    municipality_ibge_code: Mapped[str | None] = mapped_column(
+        ForeignKey("municipalities.ibge_code"), index=True
+    )
+    state: Mapped[str | None] = mapped_column(String(2), index=True)
+    name: Mapped[str] = mapped_column(String(500), index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    category: Mapped[str | None] = mapped_column(String(160), index=True)
+    status: Mapped[str | None] = mapped_column(String(120), index=True)
+    situation_detail: Mapped[str | None] = mapped_column(Text)
+    executor_name: Mapped[str | None] = mapped_column(String(320))
+    responsible_agency: Mapped[str | None] = mapped_column(String(320))
+    planned_start: Mapped[date | None] = mapped_column(Date)
+    planned_end: Mapped[date | None] = mapped_column(Date)
+    actual_start: Mapped[date | None] = mapped_column(Date)
+    actual_end: Mapped[date | None] = mapped_column(Date)
+    estimated_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    contracted_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    paid_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    physical_progress: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_document_url: Mapped[str] = mapped_column(Text)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_snapshots.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)

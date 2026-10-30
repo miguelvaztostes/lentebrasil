@@ -241,6 +241,7 @@ def test_censo_publication_orders_parent_rows_and_is_idempotent(tmp_path: Path) 
         pytest.skip("TEST_DATABASE_URL não configurada")
     engine = create_engine(url)
     school_code = "35999998"
+    second_school_code = "35999997"
     snapshot_id = release_id = None
     previous_release_ids: list[uuid.UUID] = []
     original_publication_status = "not_published"
@@ -281,6 +282,24 @@ def test_censo_publication_orders_parent_rows_and_is_idempotent(tmp_path: Path) 
         )
         adapter.upsert(db, [record], snapshot)
         adapter.upsert(db, [record], snapshot)
+        adapter.upsert(
+            db,
+            [
+                SchoolRecord(
+                    inep_code=second_school_code,
+                    municipality_code="3543402",
+                    year=2024,
+                    name="SEGUNDA ESCOLA DE TESTE",
+                    state="SP",
+                    dependency_code="3",
+                    operating_status="1",
+                    location_type="urban",
+                    infrastructure={"internet": True},
+                    enrollments={"all_basic": 20},
+                )
+            ],
+            snapshot,
+        )
         db.commit()
         release = db.scalar(
             select(PublicationRelease).where(
@@ -292,26 +311,32 @@ def test_censo_publication_orders_parent_rows_and_is_idempotent(tmp_path: Path) 
         assert (
             db.scalar(
                 select(func.count(SchoolVersion.id)).where(
-                    SchoolVersion.school_inep_code == school_code
+                    SchoolVersion.school_inep_code.in_([school_code, second_school_code])
                 )
             )
-            == 1
+            == 2
         )
         assert (
             db.scalar(
                 select(func.count(EducationEnrollment.id)).where(
-                    EducationEnrollment.school_inep_code == school_code
+                    EducationEnrollment.school_inep_code.in_([school_code, second_school_code])
                 )
             )
-            == 1
+            == 2
         )
         snapshot_id, release_id = snapshot.id, release.id
     with Session(engine) as db:
         db.execute(
-            delete(EducationEnrollment).where(EducationEnrollment.school_inep_code == school_code)
+            delete(EducationEnrollment).where(
+                EducationEnrollment.school_inep_code.in_([school_code, second_school_code])
+            )
         )
-        db.execute(delete(SchoolVersion).where(SchoolVersion.school_inep_code == school_code))
-        db.execute(delete(School).where(School.inep_code == school_code))
+        db.execute(
+            delete(SchoolVersion).where(
+                SchoolVersion.school_inep_code.in_([school_code, second_school_code])
+            )
+        )
+        db.execute(delete(School).where(School.inep_code.in_([school_code, second_school_code])))
         db.execute(delete(PublicationRelease).where(PublicationRelease.id == release_id))
         db.execute(delete(SourceSnapshot).where(SourceSnapshot.id == snapshot_id))
         for previous_id in previous_release_ids:

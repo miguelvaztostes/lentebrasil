@@ -16,6 +16,7 @@ from ingestion.adapters.health import (
 from ingestion.adapters.horizontal import IbgeBoundaryAdapter, IbgePamAdapter
 from ingestion.adapters.ibge import IbgePopulationAdapter
 from ingestion.adapters.ibge_munic import IbgeMunicAdapter
+from ingestion.adapters.politics import TseCandidacyAdapter
 from ingestion.adapters.sectors import (
     IbgePibAdapter,
     NovoCagedAdapter,
@@ -65,6 +66,7 @@ ADAPTERS = {
     "ibge_munic_risks": IbgeMunicAdapter,
     "ibge_munic_social": IbgeMunicAdapter,
     "ibge_munic_security": IbgeMunicAdapter,
+    "tse": TseCandidacyAdapter,
 }
 
 __all__ = [
@@ -95,4 +97,5 @@ __all__ = [
     "SiopsHealthExpenseAdapter",
     "TceSpExpenseAdapter",
     "TceSpRevenueAdapter",
+    "TseCandidacyAdapter",
 ]

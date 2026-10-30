@@ -247,15 +247,23 @@ class SourceAdapter(ABC):
         snapshot: SourceSnapshot,
     ) -> None:
         retrieved_at = snapshot.fetched_at
-        for record in records:
-            indicator = db.scalar(
-                select(Indicator).where(Indicator.code == record.indicator_code)
+        indicator_codes = {record.indicator_code for record in records}
+        indicators = {
+            indicator.code: indicator
+            for indicator in db.scalars(
+                select(Indicator).where(Indicator.code.in_(list(indicator_codes)))
             )
-            if indicator is None:
-                raise SourceValidationError(
-                    f"Indicador não cadastrado: {record.indicator_code}",
-                    code="unknown_indicator",
-                )
+        }
+        missing_indicators = sorted(indicator_codes - indicators.keys())
+        if missing_indicators:
+            raise SourceValidationError(
+                f"Indicador não cadastrado: {', '.join(missing_indicators)}",
+                code="unknown_indicator",
+            )
+
+        prepared: list[tuple[ObservationRecord, Indicator, str]] = []
+        for record in records:
+            indicator = indicators[record.indicator_code]
             scope_key = hashlib.sha256(
                 json.dumps(
                     record.scope,
@@ -264,25 +272,54 @@ class SourceAdapter(ABC):
                     separators=(",", ":"),
                 ).encode()
             ).hexdigest()
-            previous = db.scalar(
+            prepared.append((record, indicator, scope_key))
+
+        previous_by_key: dict[tuple[Any, ...], Observation] = {}
+        if prepared:
+            municipalities = {
+                record.municipality_ibge_code for record, _, _ in prepared
+            }
+            indicator_ids = {indicator.id for _, indicator, _ in prepared}
+            period_starts = {record.period_start for record, _, _ in prepared}
+            period_ends = {record.period_end for record, _, _ in prepared}
+            scope_keys = {scope_key for _, _, scope_key in prepared}
+            for previous in db.scalars(
                 select(Observation)
                 .where(
-                    Observation.municipality_ibge_code == record.municipality_ibge_code,
-                    Observation.indicator_id == indicator.id,
-                    Observation.period_start == record.period_start,
-                    Observation.period_end == record.period_end,
-                    Observation.scope_key == scope_key,
+                    Observation.municipality_ibge_code.in_(list(municipalities)),
+                    Observation.indicator_id.in_(list(indicator_ids)),
+                    Observation.period_start.in_(list(period_starts)),
+                    Observation.period_end.in_(list(period_ends)),
+                    Observation.scope_key.in_(list(scope_keys)),
                 )
                 .order_by(desc(Observation.revision))
-                .limit(1)
+            ):
+                key = (
+                    previous.municipality_ibge_code,
+                    previous.indicator_id,
+                    previous.period_start,
+                    previous.period_end,
+                    previous.scope_key,
+                )
+                previous_by_key.setdefault(key, previous)
+
+        pending: list[Observation] = []
+        for record, indicator, scope_key in prepared:
+            key = (
+                record.municipality_ibge_code,
+                indicator.id,
+                record.period_start,
+                record.period_end,
+                scope_key,
             )
+            previous = previous_by_key.get(key)
             if (
                 previous is not None
                 and previous.value == record.value
                 and previous.availability_status == record.availability_status
             ):
                 continue
-            db.add(
+            pending.append(
                 Observation(
                     municipality_ibge_code=record.municipality_ibge_code,
                     indicator_id=indicator.id,
@@ -298,6 +335,7 @@ class SourceAdapter(ABC):
                     revision=1 if previous is None else previous.revision + 1,
                 )
             )
+        db.add_all(pending)
         db.flush()
 
     def _create_snapshot(
@@ -335,6 +373,8 @@ class SourceAdapter(ABC):
             storage_path = str(path)
             if payload.file_path is not None and "_stage" in payload.file_path.parts:
                 payload.file_path.unlink(missing_ok=True)
+        elif payload.file_path is not None and "_stage" in payload.file_path.parts:
+            payload.file_path.unlink(missing_ok=True)
         headers = dict(payload.response_headers)
         if payload.resource_version:
             headers["x-lente-resource-version"] = payload.resource_version

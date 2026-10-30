@@ -249,6 +249,48 @@ class IbgeMunicAdapter(SourceAdapter):
                         availability_status=status,
                     )
                 )
+        returned_municipalities = {record.municipality_ibge_code for record in records}
+        missing_municipalities = self.municipalities - returned_municipalities
+        maximum_missing = max(1, len(self.municipalities) // 100)
+        if len(missing_municipalities) > maximum_missing:
+            raise SourceValidationError(
+                "Cobertura MUNIC perdeu municípios além da tolerância",
+                code="missing_municipality",
+                details={
+                    "expected": len(self.municipalities),
+                    "missing": sorted(missing_municipalities),
+                },
+            )
+        if missing_municipalities:
+            self.quality_warnings.append(
+                {
+                    "code": "historical_geography_unavailable",
+                    "details": {
+                        "municipalities": sorted(missing_municipalities),
+                        "edition": self.profile.year,
+                        "reason": "Município não consta na edição histórica da MUNIC.",
+                    },
+                }
+            )
+        for municipality in sorted(missing_municipalities):
+            for variable in self.profile.variables:
+                records.append(
+                    ObservationRecord(
+                        indicator_code=variable.indicator_code,
+                        municipality_ibge_code=municipality,
+                        period_start=date(self.profile.year, 1, 1),
+                        period_end=date(self.profile.year, 12, 31),
+                        value=None,
+                        scope={
+                            "edition": self.profile.year,
+                            "variable": variable.column,
+                            "response": None,
+                            "resource_version": self.profile.resource_version,
+                            "absence_reason": "not_present_in_source_edition",
+                        },
+                        availability_status="unavailable",
+                    )
+                )
         return records
 
     def validate(self, records: list[ObservationRecord]) -> None:
